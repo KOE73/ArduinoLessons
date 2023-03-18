@@ -7,9 +7,6 @@
   Written by Limor Fried/Ladyada for Adafruit Industries, with contributions from the open source community. BSD license, check license.txt for more information All text above, and the splash screen below must be included in any redistribution.
 *********/
 
-#define PIN_WIRE_SDA 5
-#define PIN_WIRE_SCL 4
-
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -17,10 +14,11 @@
 
 #include "main.h"
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 TwoWire WireX(0);
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
@@ -62,6 +60,7 @@ void setup()
     for (;;)
       ; // Don't proceed, loop forever
   }
+  display.setRotation(2);
 
   Serial.println(F("RUN!"));
 
