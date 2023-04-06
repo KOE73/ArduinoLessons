@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "C:/0ESP32S3Demo/example/factory"
+		},
+		{
+			"name": "ESP32-S3-IDF",
+			"path": "."
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "ESP32-S3",
+			"path": "."
+		},
+		{
+			"name": "ArduinoLessons",
+			"path": ".."
+		}
+	],
+	"settings": {}
+}
