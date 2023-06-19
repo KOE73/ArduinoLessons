@@ -2,7 +2,8 @@
 
 #include "arduinoFFT.h"
 #include "Arduino_GFX_Library.h"
-#include "AudioTools.h" // Для микрофона
+#include "AudioTools.h"        // Для микрофона
+#include "AudioToolsSPH0645.h" // Для микрофона
 
 #include "pin_config.h"
 #include "gfx_config.h"
@@ -30,15 +31,29 @@ double vImag[samples];
 #define SCL_FREQUENCY 0x04
 #define SCL_PLOT 0x05
 
+uint16_t sample_rate = 44100;   // 44100/4; 62500
+uint16_t channels = 1;         // 2
+uint16_t bits_per_sample = 32; // 16; // or try with 24 or 32
+uint16_t buffer_size = 512;    // 16; // or try with 24 or 32
+
+AudioInfo info(44100, channels, bits_per_sample);
+SineWaveGenerator<int16_t> sineWave(32000);    // subclass of SoundGenerator with max amplitude of 32000
+GeneratedSoundStream<int16_t> sound(sineWave); // Stream generated from sine wave
+CsvOutput<int32_t> outSound(Serial, channels, buffer_size);
+StreamCopy copierSound(outSound, sound); // copies sound to out
+void InitSin()
+{
+  // outSound.begin(info.channels);            // Define CSV Output
+  sineWave.begin(info, N_B4); // Setup sine wave
+}
+
 I2SStream in;
 CallbackStream out;
-DynamicMemoryStream out2(true);
-StreamCopy copier(out, in);     // copies sound into i2s
-StreamCopy copier2(out2, in); // copies sound into i2s
-
-uint16_t sample_rate = 44100;
-uint16_t channels = 1;         // 2
-uint16_t bits_per_sample = 24; // 16; // or try with 24 or 32
+// DynamicMemoryStream out2(true);
+CsvOutput<int32_t> out2(Serial, 1, 512);
+StreamCopy copier(out, in);                // copies sound into i2s
+StreamCopy copier2(out2 /*outSound*/, in); // copies sound into i2s
+MicrophoneSPH0645Reducer<int32_t> XXX;
 
 void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType);
 void DrawVector(double *vData, uint16_t bufferSize, uint8_t scaleType);
@@ -46,7 +61,8 @@ void DrawVector(uint8_t *vData, uint16_t bufferSize);
 
 void setup()
 {
-  Serial.begin(115200);
+  // Serial.begin(115200);
+  Serial.begin(921600);
   while (!Serial)
     ;
   Serial.println("Ready");
@@ -54,25 +70,38 @@ void setup()
   ScreenInit();
 
   // msetup();
-  AudioLogger::instance().begin(Serial, AudioLogger::Info);
+  // AudioLogger::instance().begin(Serial, AudioLogger::Info);
+  AudioLogger::instance().begin(Serial, AudioLogger::Error);
 
   Serial.println("starting I2S...");
   auto config_in = in.defaultConfig(RX_MODE);
+  // config_in.rx_tx_mode = RX_MODE;
+  config_in.channels = channels;
   config_in.sample_rate = sample_rate;
-  config_in.bits_per_sample = bits_per_sample;
-  config_in.i2s_format = I2S_MSB_FORMAT; // I2S_STD_FORMAT;
-  config_in.auto_clear = true;
-  config_in.buffer_size = 1024;
+  config_in.bits_per_sample = bits_per_sample; // I2S_CHANNEL_FMT_RIGHT_LEFT I2S_COMM_FORMAT_I2S  I2S_COMM_FORMAT_I2S_MSB
+  config_in.i2s_format = I2S_MSB_FORMAT;       // I2S_PHILIPS_FORMAT;//I2S_PHILIPS_FORMAT; // I2S_MSB_FORMAT; // I2S_STD_FORMAT;
+  // config_in.auto_clear = true;
+  config_in.buffer_size = buffer_size;
   config_in.is_master = true;
   config_in.port_no = 0;
   config_in.pin_bck = 44;  // 14;
   config_in.pin_ws = 43;   // 15;
   config_in.pin_data = 21; // 22;
+  // config_in.pin_data_rx = 21; // 22;
+  config_in.use_apll = false; // try with yes
+
   // config_in.fixed_mclk = sample_rate * 256
   // config_in.pin_mck = 2
   in.begin(config_in);
+  //REG_SET_BIT(I2S_RX_CONF1_REG(0), I2S_RX_MSB_SHIFT);
+  //REG_SET_BIT(I2S_RX_CONF1_REG(1), I2S_RX_MSB_SHIFT);
 
-  
+  InitSin();
+
+  // Включение микрофона
+  pinMode(21, INPUT_PULLDOWN);
+  pinMode(16, OUTPUT);
+  digitalWrite(16, HIGH);
 
   // auto config_btout= btout.defaultConfig(TX_MODE);
   // config_btout.bufferSize=1024;
@@ -91,34 +120,37 @@ uint8_t buf[1024];
 
 void loop()
 {
-  DrawVector(buf, 100);
+  // DrawVector(buf, 100);
 
-  Serial.print("Avail ");
-  Serial.println(in.available());
-
-  out.setReadCallback(reader);
+  // out.setReadCallback(reader);
   int d = 0;
   while (1)
   {
-    copier2.copy();
+    // int aval = in.available();
+    // Serial.print("Avail ");
+    // Serial.println(aval);
 
-    //Serial.print(  out2.readString());
+    // while (aval > 100)
+    //   ;
+    // copier.copy(XXX);
+    copier2.copy(XXX);
 
-    //uint8_t size = out2.readBytes(buf, 100);
-    //Serial.println(size);
-    //if (size < 100)
-    //  continue;
+    // copierSound.copy();
+    //  Serial.print(  out2.readString());
 
-    
+    // uint8_t size = out2.readBytes(buf, 100);
+    // Serial.println(size);
+    // if (size < 100)
+    //   continue;
 
-    //DrawVector(buf, 100);
+    // DrawVector(buf, 100);
 
     // in.flush();
     // copier.copy();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    // vTaskDelay(10 / portTICK_PERIOD_MS);
     // d++;
-    // while (d == 10)
-    //   ;
+    // while (d == 2)
+    //  ;
   }
 
   /* Build raw data */
@@ -304,12 +336,12 @@ void DrawVector(uint8_t *vData, uint16_t bufferSize)
     int x = map_Generic(i, 0, bufferSize, 10, ScreenW - 10);
     int y = map_Generic(vData[i], minVal, maxVal, yMin, yMax);
 
-    //Serial.print("x v=");
-    //Serial.print(x);
-    //Serial.print(" ");
-    //Serial.print(y);
-    //Serial.print(" ");
-    //Serial.println(vData[i], 4);
+    // Serial.print("x v=");
+    // Serial.print(x);
+    // Serial.print(" ");
+    // Serial.print(y);
+    // Serial.print(" ");
+    // Serial.println(vData[i], 4);
 
     gfx->drawLine(x, yMin, x, yMax, color);
 
