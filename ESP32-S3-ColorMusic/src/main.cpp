@@ -1,15 +1,18 @@
 #include <Arduino.h>
 
-#include "arduinoFFT.h"
 #include "Arduino_GFX_Library.h"
-#include "AudioTools.h"        // Для микрофона
-#include "AudioToolsSPH0645.h" // Для микрофона
+#include "AudioTools.h"             // Для микрофона
+#include "AudioToolsSPH0645.h"      // Для микрофона
+#include "AudioLibs/AudioRealFFT.h" // or any other supported inplementation
 
 #include "pin_config.h"
 #include "gfx_config.h"
+#include "graphlib.h"
 // #include "m.h"
 
-arduinoFFT FFT;
+// #include "arduinoFFT.h"
+// arduinoFFT FFT;
+
 /*
 These values can be changed in order to evaluate the functions
 */
@@ -32,11 +35,11 @@ double vImag[samples];
 #define SCL_PLOT 0x05
 
 uint16_t sample_rate = 44100;   // 44100/4; 62500
-uint16_t channels = 1;         // 2
-uint16_t bits_per_sample = 32; // 16; // or try with 24 or 32
-uint16_t buffer_size = 512;    // 16; // or try with 24 or 32
+uint16_t channels = 1;          // 2
+uint16_t bits_per_sample = 32;  // 16; // or try with 24 or 32
+uint16_t buffer_size = 512 * 2; // 16; // or try with 24 or 32
 
-AudioInfo info(44100, channels, bits_per_sample);
+AudioInfo info(sample_rate, channels, bits_per_sample);
 SineWaveGenerator<int16_t> sineWave(32000);    // subclass of SoundGenerator with max amplitude of 32000
 GeneratedSoundStream<int16_t> sound(sineWave); // Stream generated from sine wave
 CsvOutput<int32_t> outSound(Serial, channels, buffer_size);
@@ -47,17 +50,28 @@ void InitSin()
   sineWave.begin(info, N_B4); // Setup sine wave
 }
 
-I2SStream in;
-CallbackStream out;
+I2SStream inMicrophone;
+CallbackStream outCallbackStream;
 // DynamicMemoryStream out2(true);
-CsvOutput<int32_t> out2(Serial, 1, 512);
-StreamCopy copier(out, in);                // copies sound into i2s
-StreamCopy copier2(out2 /*outSound*/, in); // copies sound into i2s
+StreamCopy copyToCallbackStream(outCallbackStream, inMicrophone); // copies sound into i2s
+
+CsvOutput<int32_t> outSerial(Serial, 1, buffer_size);
+StreamCopy copierToSerial(outSerial /*outSound*/, inMicrophone);
+
+AudioRealFFT fft;
+StreamCopy copierToFFT(fft, inMicrophone);
+
 MicrophoneSPH0645Reducer<int32_t> XXX;
 
 void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType);
 void DrawVector(double *vData, uint16_t bufferSize, uint8_t scaleType);
-void DrawVector(uint8_t *vData, uint16_t bufferSize);
+template <class D>
+void DrawVector(D *vData, uint16_t bufferSize);
+template <class T>
+void DrawVector1(const uint8_t *src, uint16_t byte_count, int x, int y, int w, int h, uint16_t color);
+template <class T>
+void DrawVector2(const uint8_t *src, uint16_t byte_count, int x, int y, int w, int h, uint16_t color);
+void fftResult(AudioFFTBase &fft);
 
 void setup()
 {
@@ -73,8 +87,13 @@ void setup()
   // AudioLogger::instance().begin(Serial, AudioLogger::Info);
   AudioLogger::instance().begin(Serial, AudioLogger::Error);
 
+  // gfx->setTextColor(gfx->color565(0x00, 0xF0, 0x80));
+  // gfx->setCursor(80,80);
+  // gfx->print("1");
+  // delay(250);
+
   Serial.println("starting I2S...");
-  auto config_in = in.defaultConfig(RX_MODE);
+  auto config_in = inMicrophone.defaultConfig(RX_MODE);
   // config_in.rx_tx_mode = RX_MODE;
   config_in.channels = channels;
   config_in.sample_rate = sample_rate;
@@ -90,11 +109,14 @@ void setup()
   // config_in.pin_data_rx = 21; // 22;
   config_in.use_apll = false; // try with yes
 
+  // нельзя тут! внутри сразу запускает обмен, а он еще не настроенн inMicrophone.setAudioInfo(info);
+  outCallbackStream.setAudioInfo(info);
+
   // config_in.fixed_mclk = sample_rate * 256
   // config_in.pin_mck = 2
-  in.begin(config_in);
-  //REG_SET_BIT(I2S_RX_CONF1_REG(0), I2S_RX_MSB_SHIFT);
-  //REG_SET_BIT(I2S_RX_CONF1_REG(1), I2S_RX_MSB_SHIFT);
+  inMicrophone.begin(config_in);
+  // REG_SET_BIT(I2S_RX_CONF1_REG(0), I2S_RX_MSB_SHIFT);
+  // REG_SET_BIT(I2S_RX_CONF1_REG(1), I2S_RX_MSB_SHIFT);
 
   InitSin();
 
@@ -103,26 +125,117 @@ void setup()
   pinMode(16, OUTPUT);
   digitalWrite(16, HIGH);
 
+  // Setup FFT
+  auto tcfg = fft.defaultConfig();
+  tcfg.length = buffer_size; // 4096;
+  tcfg.channels = channels;
+  tcfg.sample_rate = sample_rate;
+  tcfg.bits_per_sample = bits_per_sample;
+  tcfg.callback = &fftResult;
+  fft.begin(tcfg);
+
   // auto config_btout= btout.defaultConfig(TX_MODE);
   // config_btout.bufferSize=1024;
   ////config_btout. startLogic = ;
   // btout.begin(config_btout);
 }
 
-size_t reader(uint8_t *data, size_t len)
+size_t callbackReader(uint8_t *data, size_t len)
 {
-  Serial.print("callb len");
+  Serial.print("Reader len");
   Serial.println(len);
   return len;
+}
+
+Vector<uint8_t> tmp;
+
+size_t callbackWriter(const uint8_t *data, size_t len)
+{
+  // Serial.print(".");
+  // Serial.print(len);
+  // Serial.print("Writer len ");
+  // Serial.println(len);
+  if (tmp.size() != len)
+    tmp.resize(len);
+
+  DrawVector1<int32_t>(tmp.data(), (uint16_t)tmp.capacity(), 10, ScreenH - ScreenH / 2 - 5, ScreenW - 20, ScreenH / 2 - 10, 0);
+
+  uint16_t color = gfx->color565(255, 255, 0);
+  DrawVector1<int32_t>(data, (uint16_t)len, 10, ScreenH - ScreenH / 2 - 5, ScreenW - 20, ScreenH / 2 - 10, color);
+
+  memcpy((void *)tmp.data(), (void *)data, len);
+
+  return len;
+}
+
+void printAudioInfo(const char *text, AudioInfo info)
+{
+  char str[100];
+  sprintf(str, "%s sample_rate: %d  channels: %d  bits_per_sample: %d", text, info.sample_rate, info.channels, info.bits_per_sample);
+  Serial.println(str);
+}
+
+Vector<uint32_t> fm; // freguence magnitude
+
+// display fft result
+void fftResult(AudioFFTBase &fft)
+{
+  int bins = fft.size();
+  if (fm.size() != bins)
+    fm.resize(bins);
+
+  DrawVector2<int32_t>((uint8_t *)fm.data(), (uint16_t)fm.capacity(), 10, ScreenH - 5, ScreenW - 20, ScreenH / 2 - 5, 0);
+
+  for (int i = 0; i < bins; i++)
+    fm[i] = (100. * 20. * log10(fft.magnitude(i))) - 7700.;
+  fm[0] = 0;
+
+  DrawVector2<int32_t>((uint8_t *)fm.data(), (uint16_t)fm.capacity(), 10, ScreenH - 5, ScreenW - 20, ScreenH / 2 - 5, gfx->color565(0, 128, 255));
+
+  // for (int i = 1; i < 10; i++)
+  //{
+  //   Serial.print(fft.frequency(i));
+  //   Serial.print(" ");
+  //   Serial.print(fft.magnitude(i));
+  //   Serial.print(" ");
+  //   Serial.println(fm[i]);
+  // }
+
+  // float diff;
+  // auto result = fft.result();
+  // if (result.magnitude > 100)
+  //{
+  //   Serial.print(result.frequency);
+  //   Serial.print(" ");
+  //   Serial.print(result.magnitude);
+  //   Serial.print(" => ");
+  //   Serial.print(result.frequencyAsNote(diff));
+  //   Serial.print(" diff: ");
+  //   Serial.println(diff);
+  // }
 }
 
 uint8_t buf[1024];
 
 void loop()
 {
-  // DrawVector(buf, 100);
+  uint32_t *sample = (uint32_t *)buf;
+  int size = sizeof(buf) / sizeof(uint32_t);
+  for (uint16_t i = 0; i < size; i++)
+  {
+    sample[i] = sin(i / 25.) * 1000.;
+  }
 
-  // out.setReadCallback(reader);
+  DrawVector1<int32_t>(buf, sizeof(buf), 10, ScreenH - 10, ScreenW - 20, ScreenH - 20, gfx->color565(255, 0, 0));
+
+  delay(500);
+
+  outCallbackStream.setReadCallback(callbackReader);
+  outCallbackStream.setWriteCallback(callbackWriter);
+
+  printAudioInfo("inMicrophone", inMicrophone.audioInfo());
+  printAudioInfo("outCallbackStream", outCallbackStream.audioInfo());
+
   int d = 0;
   while (1)
   {
@@ -132,8 +245,9 @@ void loop()
 
     // while (aval > 100)
     //   ;
-    // copier.copy(XXX);
-    copier2.copy(XXX);
+    copyToCallbackStream.copy(XXX);
+    copierToFFT.copy(XXX);
+    // copierToSerial.copy(XXX);
 
     // copierSound.copy();
     //  Serial.print(  out2.readString());
@@ -152,42 +266,45 @@ void loop()
     // while (d == 2)
     //  ;
   }
+}
 
-  /* Build raw data */
-  double cycles = (((samples - 1) * signalFrequency) / samplingFrequency); // Number of signal cycles that the sampling will read
-  double cycles2 = (((samples - 1) * 1953) / samplingFrequency);           // Number of signal cycles that the sampling will read
-  for (uint16_t i = 0; i < samples; i++)
-  {
-    vReal[i] = int8_t((amplitude * (sin((i * (twoPi * cycles)) / samples))) / 2.0);       /* Build data with positive and negative values*/
-    vReal[i] += int8_t((amplitude / 2 * (sin((i * (twoPi * cycles2)) / samples))) / 2.0); /* Build data with positive and negative values*/
-    // vReal[i] = uint8_t((amplitude * (sin((i * (twoPi * cycles)) / samples) + 1.0)) / 2.0);/* Build data displaced on the Y axis to include only positive values*/
-    vImag[i] = 0.0; // Imaginary part must be zeroed in case of looping to avoid wrong calculations and overflows
-  }
-
-  FFT = arduinoFFT(vReal, vImag, samples, samplingFrequency); /* Create FFT object */
-  /* Print the results of the simulated sampling according to time */
-  Serial.println("Data:");
-  PrintVector(vReal, samples, SCL_TIME1);
-
-  FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD); /* Weigh data */
-  Serial.println("Weighed data:");
-  PrintVector(vReal, samples, SCL_TIME2);
-
-  FFT.Compute(FFT_FORWARD); /* Compute FFT */
-  Serial.println("Computed Real values:");
-  PrintVector(vReal, samples, SCL_INDEX1);
-  Serial.println("Computed Imaginary values:");
-  PrintVector(vImag, samples, SCL_INDEX2);
-
-  FFT.ComplexToMagnitude(); /* Compute magnitudes */
-  Serial.println("Computed magnitudes:");
-  PrintVector(vReal, (samples >> 1), SCL_FREQUENCY);
-
-  double x = FFT.MajorPeak();
-  Serial.println(x, 6);
-  while (1)
-    ; /* Run Once */
-  // delay(2000); /* Repeat after delay */
+void oldMain()
+{
+  //  /* Build raw data */
+  //  double cycles = (((samples - 1) * signalFrequency) / samplingFrequency); // Number of signal cycles that the sampling will read
+  //  double cycles2 = (((samples - 1) * 1953) / samplingFrequency);           // Number of signal cycles that the sampling will read
+  //  for (uint16_t i = 0; i < samples; i++)
+  //  {
+  //    vReal[i] = int8_t((amplitude * (sin((i * (twoPi * cycles)) / samples))) / 2.0);       /* Build data with positive and negative values*/
+  //    vReal[i] += int8_t((amplitude / 2 * (sin((i * (twoPi * cycles2)) / samples))) / 2.0); /* Build data with positive and negative values*/
+  //    // vReal[i] = uint8_t((amplitude * (sin((i * (twoPi * cycles)) / samples) + 1.0)) / 2.0);/* Build data displaced on the Y axis to include only positive values*/
+  //    vImag[i] = 0.0; // Imaginary part must be zeroed in case of looping to avoid wrong calculations and overflows
+  //  }
+  //
+  //  FFT = arduinoFFT(vReal, vImag, samples, samplingFrequency); /* Create FFT object */
+  //  /* Print the results of the simulated sampling according to time */
+  //  Serial.println("Data:");
+  //  PrintVector(vReal, samples, SCL_TIME1);
+  //
+  //  FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD); /* Weigh data */
+  //  Serial.println("Weighed data:");
+  //  PrintVector(vReal, samples, SCL_TIME2);
+  //
+  //  FFT.Compute(FFT_FORWARD); /* Compute FFT */
+  //  Serial.println("Computed Real values:");
+  //  PrintVector(vReal, samples, SCL_INDEX1);
+  //  Serial.println("Computed Imaginary values:");
+  //  PrintVector(vImag, samples, SCL_INDEX2);
+  //
+  //  FFT.ComplexToMagnitude(); /* Compute magnitudes */
+  //  Serial.println("Computed magnitudes:");
+  //  PrintVector(vReal, (samples >> 1), SCL_FREQUENCY);
+  //
+  //  double x = FFT.MajorPeak();
+  //  Serial.println(x, 6);
+  //  while (1)
+  //    ; /* Run Once */
+  //  // delay(2000); /* Repeat after delay */
 }
 
 void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
@@ -219,16 +336,6 @@ void PrintVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
     Serial.println(vData[i], 4);
   }
   Serial.println();
-}
-
-template <class X, class M, class N, class O, class Q>
-X map_Generic(X x, M in_min, N in_max, O out_min, Q out_max)
-{
-  O deltaIn = in_max - in_min;
-  if (deltaIn == 0)
-    return x + out_min;
-
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
 void DrawVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
@@ -311,7 +418,8 @@ void DrawVector(double *vData, uint16_t bufferSize, uint8_t scaleType)
   }
 }
 
-void DrawVector(uint8_t *vData, uint16_t bufferSize)
+template <class D>
+void DrawVector(D *vData, uint16_t bufferSize)
 {
   gfx->fillScreen(gfx->color565(0x00, 0x30, 0x00));
 
@@ -320,7 +428,7 @@ void DrawVector(uint8_t *vData, uint16_t bufferSize)
   yMax = ScreenH - 150;
   yMin = ScreenH - 30;
 
-  uint8_t minVal = 0, maxVal = 0;
+  D minVal = 0, maxVal = 0;
   for (uint16_t i = 0; i < bufferSize; i++)
   {
     minVal = _min(minVal, vData[i]);
@@ -350,5 +458,86 @@ void DrawVector(uint8_t *vData, uint16_t bufferSize)
 
     x0 = x;
     y0 = y;
+  }
+}
+
+template <class T>
+void DrawVector1(const uint8_t *src, uint16_t byte_count, int x, int y, int w, int h, uint16_t color)
+{
+  T *sample = (T *)src;
+  int size = byte_count / sizeof(T);
+
+  int yMin = y, yMax = y - h;
+  int xMin = x, xMax = x + w;
+
+  T minVal = 0, maxVal = 0;
+  for (uint16_t i = 0; i < size; i++)
+  {
+    minVal = _min(minVal, sample[i]);
+    maxVal = _max(maxVal, sample[i]);
+  }
+
+  int x0 = -1, y0 = -1;
+
+  for (uint16_t i = 0; i < size; i++)
+  {
+    int x = map_Generic(i, 0, size, xMin, xMax);
+    int y = map_Generic(sample[i], minVal, maxVal, yMin, yMax);
+
+    // Serial.print("x,y=");
+    // Serial.print(x);
+    // Serial.print(",");
+    // Serial.print(y);
+    // Serial.print(" ");
+    // Serial.println(sample[i]);
+
+    // gfx->drawLine(x, yMin, x, yMax, color);
+
+    if (x0 >= 0)
+      gfx->drawLine(x0, y0, x, y, color);
+
+    x0 = x;
+    y0 = y;
+  }
+}
+
+template <class T>
+void DrawVector2(const uint8_t *src, uint16_t byte_count, int x, int y, int w, int h, uint16_t color)
+{
+  T *sample = (T *)src;
+  int size = byte_count / sizeof(T);
+
+  int yMin = y, yMax = y - h;
+  int xMin = x, xMax = x + w;
+
+  T minVal = 0, maxVal = 2000;
+  // for (uint16_t i = 0; i < size; i++)
+  //{
+  //   minVal = _min(minVal, sample[i]);
+  //   maxVal = _max(maxVal, sample[i]);
+  // }
+  int xWnd = 2;
+  int xSize = size / xWnd;
+  for (uint16_t i = 0; i < xSize; i += 2)
+  {
+    int x = map_Generic(i, 0, xSize, xMin, xMax);
+    // int y = map_Generic(sample[i], minVal, maxVal, yMin, yMax);
+    // gfx->drawLine(x, yMin, x, y, color);
+
+    int val = 0;
+    for (int w = 0; w < xWnd; w++)
+      val += sample[i + w];
+
+    val /= xWnd;
+
+    int y = map_Generic(sample[i], minVal, maxVal, 0, h);
+    gfx->fillRect(x, yMin, 3, -y, color);
+
+    // Serial.print("x,y=");
+    // Serial.print(x);
+    // Serial.print(",");
+    // Serial.print(y);
+    // Serial.print(" ");
+    // Serial.println(sample[i]);
   }
 }

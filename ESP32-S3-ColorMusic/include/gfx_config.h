@@ -49,6 +49,8 @@ void ScreenInit()
 
     gfx->setTextSize(4);
     gfx->print("AAAAAA");
+    
+    gfx->drawLine(5,5,100,100,gfx->color565(0xFF, 0xF0, 0x00));
 
     //gfx->setTextSize(3);
     //gfx->setTextColor(gfx->color565(0xff, 0x00, 0x00));
