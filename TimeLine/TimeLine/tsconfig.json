@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "module": "ES2022",
+        "noImplicitAny": false,
+        "noEmitOnError": true,
+        "removeComments": false,
+        "sourceMap": true,
+        "target": "ES2022"
+
+    },
+  "exclude": [
+    "node_modules",
+    "wwwroot1"
+  ]
+}

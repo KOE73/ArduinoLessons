@@ -1,0 +1,121 @@
+﻿@page "/"
+@using System.Globalization
+
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<button @onclick="AAA">aa</button>
+<div>
+	@width
+	<button @onclick="()=>width+=5">W+</button>
+	<button @onclick="()=>width-=5">W-</button>
+</div>
+<div>
+	@height
+	<button @onclick="()=>height+=5">H+</button>
+	<button @onclick="()=>height-=5">H-</button>
+</div>
+
+<div>
+	P1 ViewPort @Xvp1 @Yvp1@Wvp2 @Hvp2
+	<button @onclick="()=>Xvp1+=5">Xvp1+</button>
+	<button @onclick="()=>Xvp1-=5">Xvp1-</button>
+	<button @onclick="()=>Yvp1+=5">Yvp1+</button>
+	<button @onclick="()=>Yvp1-=5">Yvp1-</button>
+	<button @onclick="()=>Wvp2+=5">Wvp2+</button>
+	<button @onclick="()=>Wvp2-=5">Wvp2-</button>
+	<button @onclick="()=>Hvp2+=5">Hvp2+</button>
+	<button @onclick="()=>Hvp2-=5">Hvp2-</button>
+</div>
+<div>
+	P1 ViewBox @Xvb1 @Yvb1 @Wvb2 @Hvb2
+	<button @onclick="()=>Xvb1+=5">Xvb1+</button>
+	<button @onclick="()=>Xvb1-=5">Xvb1-</button>
+	<button @onclick="()=>Yvb1+=5">Yvb1+</button>
+	<button @onclick="()=>Yvb1-=5">Yvb1-</button>
+	<button @onclick="()=>Wvb2+=5">Wvb2+</button>
+	<button @onclick="()=>Wvb2-=5">Wvb2-</button>
+	<button @onclick="()=>Hvb2+=5">Hvb2+</button>
+	<button @onclick="()=>Hvb2-=5">Hvb2-</button>
+</div>
+
+
+<div>
+	Translate @TTX @TTY @($"TSX:N2") @($"TSY:N2")
+	<button @onclick="()=>TTX+=5">TTX+</button>
+	<button @onclick="()=>TTX-=5">TTX-</button>
+	<button @onclick="()=>TTY+=5">TTY+</button>
+	<button @onclick="()=>TTY-=5">TTY-</button>
+	<button @onclick="()=>TSX+=0.1">TSX+</button>
+	<button @onclick="()=>TSX-=0.1">TSX-</button>
+	<button @onclick="()=>TSY+=0.1">TSY+</button>
+	<button @onclick="()=>TSY-=0.1">TSY-</button>
+</div>
+
+<div>
+	@X,@Y
+	<button @onclick="()=>X++">X+=5</button>
+	<button @onclick="()=>X--">X-=5</button>
+	<button @onclick="()=>Y++">Y+=5</button>
+	<button @onclick="()=>Y--">Y-=5</button>
+</div>
+
+<div id="ssvvgg">
+</div>
+
+<div style="border:solid 1px black">
+	<svg style="border:solid 3px blue"
+		 xmlns="http://www.w3.org/2000/svg"
+		 version="1.1"
+		 xmlns:xlink="http://www.w3.org/1999/xlink"
+		 xmlns:svgjs="http://svgjs.dev/svgjs"
+		 preserveAspectRatio="xMidYMid slice"
+		 width="@width"
+		 height="@height"
+		 viewPort="@Xvp1 @Yvp1 @Wvp2 @Hvp2"
+		 viewBox="@Xvb1 @Yvb1 @Wvb2 @Hvb2">
+		<rect width="@(Wvp2-Xvp1)" height="@(Hvp2-Yvp1)" x="@Xvp1" y="@Yvp1" fill="#80ff0000" stroke="red" stroke-width="3" />
+		<g transform="scale(@TSX.ToString(CultureInfo.InvariantCulture) @TSY.ToString(CultureInfo.InvariantCulture)) translate(@TTX @TTY)">
+			<rect width="50" height="50" x="@X" y="@Y" fill="#ff0033" />
+			<rect width="80%" height="80%" fill="#80ff6633" x="10%" y="10%" />
+			<circle cx="0" cy="00" r="25" fill="#80005050" />
+			<circle cx="0" cy="300" r="25" fill="#80005050" />
+			<circle cx="300" cy="0" r="25" fill="#80005050" />
+			<circle cx="300" cy="300" r="25" fill="#80005050" />
+		</g>
+
+		<rect width="50" height="100%" x="0" y="0" fill="#ff88ff" />
+
+		<g transform="scale(1 @TSY.ToString(CultureInfo.InvariantCulture)) translate(0 @TTY)">
+			<rect width="50" height="50" x="0" y="0" fill="#ff0033" />
+		</g>
+
+
+	</svg>
+</div>
+<rect width="50" height="50" fill="#ff0033" x="50" y="50"></rect>
+		 preserveAspectRatio="none"
+
+@code {
+	int width = 300;
+	int height = 300;
+	int Xvp1 = 0;
+	int Yvp1 = 0;
+	int Wvp2 = 300;
+	int Hvp2 = 300;
+	int Xvb1 = 0;
+	int Yvb1 = 0;
+	int Wvb2 = 300;
+	int Hvb2 = 300;
+	int X = 125;
+	int Y = 125;
+
+	int TTX = 0;
+	int TTY = 0;
+	double TSX = 1;
+	double TSY = 1;
+}
