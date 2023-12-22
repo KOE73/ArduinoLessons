@@ -10,7 +10,8 @@
 #define ScreenW ScreenHeight
 #define ScreenH ScreenWidth
 
-Arduino_DataBus *bus = new Arduino_ESP32LCD8(
+//Arduino_DataBus *bus = new Arduino_ESP32LCD8(
+Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
     7 /* DC */,
     6 /* CS */,
     8 /* WR */,
@@ -34,7 +35,8 @@ Arduino_GFX *gfx = new Arduino_ST7789(
     35 /* col offset 1 */,
     0 /* row offset 1 */,
     35 /* col offset 2 */,
-    0 /* row offset 2 */);
+    0 /* row offset 2 */
+    );
 
 void ScreenInit()
 {

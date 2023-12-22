@@ -119,7 +119,7 @@ void setup()
   // REG_SET_BIT(I2S_RX_CONF1_REG(1), I2S_RX_MSB_SHIFT);
 
   InitSin();
-
+  Serial.println("Start Microphone");
   // Включение микрофона
   pinMode(21, INPUT_PULLDOWN);
   pinMode(16, OUTPUT);
@@ -240,7 +240,7 @@ void loop()
   while (1)
   {
     // int aval = in.available();
-    // Serial.print("Avail ");
+    //Serial.print("Avail ");
     // Serial.println(aval);
 
     // while (aval > 100)

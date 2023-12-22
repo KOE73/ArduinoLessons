@@ -3,7 +3,7 @@
 #include "AudioTools.h" // Для микрофона
 
 template <typename T>
-class MicrophoneSPH0645Reducer : public BaseConverter<T>
+class MicrophoneSPH0645Reducer : public BaseConverter
 {
 public:
     MicrophoneSPH0645Reducer(int channels = 2)
