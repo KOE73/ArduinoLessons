@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Irrigation Control</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+        button { font-size: 1.5em; padding: 10px 30px; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Управление поливом</h1>
+    <button onclick="sendManual(1)">Включить насос</button>
+    <button onclick="sendManual(0)">Выключить насос</button>
+
+    <script>
+        function sendManual(state) {
+            fetch(`/manual?on=${state}`)
+                .then(res => location.reload())
+                .catch(err => alert("Ошибка подключения"));
+        }
+    </script>
+</body>
+</html>
