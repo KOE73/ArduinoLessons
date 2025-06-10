@@ -1,12 +1,15 @@
 #include "ntp_time.h"
 #include <time.h>
 
+#define TIME_OFFSET 5
+
 void initTime() {
-    configTime(3600 * 3, 0, "pool.ntp.org"); // МСК по умолчанию (UTC+3)
+    configTime(3600 * TIME_OFFSET, 0, "pool.ntp.org", "ru.pool.ntp.org", "ntp1.stratum2.ru"); // МСК по умолчанию (UTC+3)
+}
+
+bool getHasTime() {
     struct tm timeinfo;
-    while (!getLocalTime(&timeinfo)) {
-        delay(100);
-    }
+    return getLocalTime(&timeinfo,0);
 }
 
 uint16_t getMinutesSinceMidnight() {

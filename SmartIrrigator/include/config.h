@@ -14,11 +14,12 @@
 
 // Расписание
 #define MAX_SCHEDULES 8
+#define VALVE_COUNT 3
 
 // WiFi
 #define AP_SSID "IrrigationSystem"
 #define AP_PASSWORD "12345678"
-#define WIFI_CONNECT_TIMEOUT 15000  // мс
+#define WIFI_CONNECT_TIMEOUT 5000  // мс
 
 // Веб
 #define SERVER_PORT 80
