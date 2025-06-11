@@ -18,7 +18,7 @@
             font-weight: bold;
         }
 
-        
+
 
         @media (max-width: 576px) {
             h1 {
@@ -40,64 +40,71 @@
 <body class="bg-light">
 
     <div class="container text-center">
-        <h1 class="mb-4">Управление поливом</h1>
+        <h1 class="mb-1">Управление поливом</h1>
 
         <div class="container text-center">
 
             <!-- Время -->
-            <div class="row justify-content-center mb-4">
-                <div class="col-12 col-md-4">
+            <div class="row justify-content-center">
+                <div class="col-12 col-md-4 mb-2 mb-md-0">
                     <div class="card shadow-sm">
-                        <div class="card-header bg-info text-white">
+                        <div class="card-header bg-info text-white p-0">
                             Текущее время
                         </div>
                         <div class="card-body p-2">
-                                <strong><span id="currentTime">?</span></strong>
+                            <strong><span id="currentTime">?</span></strong>
+                            [<strong><span id="minutesSinceMidnight">?</span></strong>]
                         </div>
                     </div>
                 </div>
 
                 <!-- Насос полива -->
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-4 mb-2 mb-md-0">
                     <div class="card shadow-sm">
-                        <div class="card-header bg-primary text-white">
-                            Насос полива
+                        <div class="card-header bg-primary text-white p-0">
+                            Полив
                         </div>
-                        <div class="card-body p-2">
-                            <p>Состояние: <span id="irrigationStatus" class="text-primary">?</span></p>
-                            <div class="row row-cols-1 row-cols-md-2 g-2">
-                                <div class="col">
-                                    <button class="btn btn-success w-100 p-1"
-                                        onclick="sendControl('irrigation', 1)">Включить</button>
-                                </div>
-                                <div class="col">
-                                    <button class="btn btn-danger w-100 p-1"
-                                        onclick="sendControl('irrigation', 0)">Выключить</button>
-                                </div>
+                        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2 p-1">
+
+                            <!-- Левая часть: статус -->
+                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                                <span id="irrigationStatus" class="badge rounded-pill bg-light text-dark">Насос</span>
+
+                                <!-- Здесь появятся badges по клапанам -->
+                                <span id="valveStatus" class="d-flex gap-1 flex-wrap"></span>
                             </div>
+
+
+                            <!-- Правая часть: переключатель -->
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="irrigationSwitch"
+                                    onchange="sendControl('irrigation', this.checked ? 1 : 0)">
+                            </div>
+
                         </div>
                     </div>
                 </div>
 
                 <!-- Насос наполнения -->
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-4 mb-2 mb-md-0">
                     <div class="card shadow-sm">
-                        <div class="card-header bg-success text-white">
-                            Насос наполнения
+                        <div class="card-header bg-success text-white p-0">
+                            Бочка
                         </div>
-                        <div class="card-body p-2">
-                            <p>Состояние: <span id="fillStatus" class="text-primary">?</span></p>
-                            <p>Бочка полная: <span id="isFull" class="text-primary">?</span></p>
-                            <div class="row row-cols-1 row-cols-md-2 g-2">
-                                <div class="col">
-                                    <button class="btn btn-success w-100 p-1"
-                                        onclick="sendControl('fill', 1)">Включить</button>
-                                </div>
-                                <div class="col">
-                                    <button class="btn btn-danger w-100 p-1"
-                                        onclick="sendControl('fill', 0)">Выключить</button>
-                                </div>
+                        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2 p-1">
+
+                            <!-- Левая часть: статусы -->
+                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                                <span id="fillStatus" class="badge rounded-pill bg-light text-dark">Насос</span>
+                                <span id="isFull" class="badge rounded-pill bg-light text-dark">Уровень</span>
                             </div>
+
+                            <!-- Правая часть: переключатель -->
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="fillPumpSwitch"
+                                    onchange="sendControl('fill', this.checked ? 1 : 0)">
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -105,11 +112,11 @@
 
         </div>
 
-        <div class="container mt-5">
+        <div class="container mt-1">
             <h2>Расписания</h2>
             <form id="scheduleForm">
                 <div class="table-responsive">
-                    <table class="table table-bordered">
+                    <table class="table table-sm table-bordered">
                         <thead class="table-light">
                             <tr>
                                 <th>#</th>
@@ -140,22 +147,64 @@
                 .catch(err => alert("Ошибка подключения"));
         }
 
+
         function updateState() {
             fetch('/state')
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('irrigationStatus').textContent = data.out_IrrigationPumpOn ? 'ВКЛ' : 'ВЫКЛ';
-                    document.getElementById('fillStatus').textContent = data.out_FillPumpOn ? 'ВКЛ' : 'ВЫКЛ';
-                    document.getElementById('isFull').textContent = data.in_IsFull ? 'Да' : 'Нет';
-                    document.getElementById('currentTime').textContent = data.hasTime ?
-                        new Date(data.timeInfo.year + 1900, data.timeInfo.month, data.timeInfo.mday,
-                            data.timeInfo.hour, data.timeInfo.min, data.timeInfo.sec).toLocaleTimeString('ru-RU') :
-                        'Не синхронизировано';
+
+                    //document.getElementById('irrigationStatus').textContent = data.out_IrrigationPumpOn ? 'ВКЛ' : 'ВЫКЛ';
+                    const irrigationEl = document.getElementById('irrigationStatus');
+                    irrigationEl.className = 'badge rounded-pill ' + (data.out_IrrigationPumpOn ? 'bg-success' : 'bg-secondary');
+
+                    const valveStatus = document.getElementById('valveStatus');
+                    valveStatus.innerHTML = ''; // очистим перед вставкой
+
+                    if (Array.isArray(data.valves)) {
+                        data.valves.forEach((isOpen, i) => {
+                            const badge = document.createElement('span');
+                            badge.className = 'badge rounded-pill ' + (isOpen ? 'bg-primary text-white' : 'bg-light text-dark');
+                            badge.textContent = `V${i + 1}`;
+                            valveStatus.appendChild(badge);
+                        });
+                    }
+
+                    //document.getElementById('fillStatus').textContent = data.out_FillPumpOn ? 'ВКЛ' : 'ВЫКЛ';
+                    //document.getElementById('isFull').textContent = data.in_IsFull ? 'Да' : 'Нет';
+                    // fillStatus
+                    const fillStatusEl = document.getElementById('fillStatus');
+                    //fillStatusEl.textContent = data.out_FillPumpOn ? 'Насос' : 'ВЫКЛ';
+                    fillStatusEl.className = 'badge rounded-pill ' + (data.out_FillPumpOn ? 'bg-success' : 'bg-secondary');
+
+                    // isFull
+                    const isFullEl = document.getElementById('isFull');
+                    //isFullEl.textContent = data.in_IsFull ? 'Полная' : 'Не полная';
+                    isFullEl.className = 'badge rounded-pill ' + (data.in_IsFull ? 'bg-primary' : 'bg-warning');
+
+
+
+                    //document.getElementById('currentTime').textContent = data.hasTime ?
+                    //    new Date(data.timeInfo.year + 1900, data.timeInfo.month, data.timeInfo.mday,
+                    //        data.timeInfo.hour, data.timeInfo.min, data.timeInfo.sec).toLocaleTimeString('ru-RU') :
+                    //    'Не синхронизировано';
+
+                    const t = data.timeInfo;
+                    if (data.hasTime && t) {
+                        const timeStr = `${pad(t.hour)}:${pad(t.min)}:${pad(t.sec)}`;
+                        document.getElementById('currentTime').textContent = timeStr;
+                    } else {
+                        document.getElementById('currentTime').textContent = "Не синхронизировано";
+                    }
+                    document.getElementById('minutesSinceMidnight').textContent = toTimeStr(data.minutesSinceMidnight);
 
                     // Цветовая индикация
-                    updateColor('irrigationStatus', data.out_IrrigationPumpOn);
-                    updateColor('fillStatus', data.out_FillPumpOn);
-                    updateColor('isFull', data.in_IsFull);
+                    //updateColor('irrigationStatus', data.out_IrrigationPumpOn);
+                    //updateColor('fillStatus', data.out_FillPumpOn);
+                    //updateColor('isFull', data.in_IsFull);
+
+                    // 👇 Устанавливаем состояние переключателя
+                    document.getElementById('fillPumpSwitch').checked = data.in_IsManualFill;
+                    document.getElementById('irrigationSwitch').checked = data.in_IsManualIrrigation;
                 });
         }
 
@@ -179,27 +228,43 @@
 
                     data.forEach((s, i) => {
                         const row = document.createElement("tr");
-
-                        const valveCheckboxes = s.valves.map((v, idx) =>
-                            `<label class='form-check form-check-inline'>
-                        <input type="checkbox" class="form-check-input" name="v${i}_${idx}" ${v ? "checked" : ""}>
-                        V${idx + 1}
-                    </label>`
-                        ).join(" ");
+                        const valveCheckboxes = s.valves.map((v, idx) => {
+                            const inputId = `${i}_v${idx}`;  // уникальный id на каждый чекбокс
+                            return `
+                                <input type="checkbox" class="btn-check" id="${inputId}" name="${inputId}" autocomplete="off" ${v ? "checked" : ""}>
+                                <label class="btn btn-outline-primary btn-sm" for="${inputId}">V${idx + 1}</label>
+                            `;
+                        }).join(" ");
 
                         row.innerHTML = `
-                    <td>${i + 1}</td>
-                    <td><input type="checkbox" name="enabled${i}" ${s.enabled ? "checked" : ""}></td>
-                    <td><input type="time" class="form-control" name="start${i}" value="${toTimeStr(s.startTime)}"></td>
-                    <td><input type="time" class="form-control" name="end${i}" value="${toTimeStr(s.endTime)}"></td>
-                    <td>${valveCheckboxes}</td>
-                    <td><input type="checkbox" name="irrigation${i}" ${s.irrigationPump ? "checked" : ""}></td>
-                    <td><input type="checkbox" name="fill${i}" ${s.fillPump ? "checked" : ""}></td>
-                    <td><button type="button" class="btn btn-sm btn-success" onclick="saveSchedule(${i})">💾</button></td>
-                `;
+                            <td>${i + 1}</td>
+                        <td>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" id="${i}_enabled" name="${i}_enabled" ${s.enabled ? "checked" : ""}>
+                              </div>
+                            </td>
+                            <td><input type="time" class="form-control form-control-sm" id="${i}_start" name="${i}_start" value="${toTimeStr(s.startTime)}"></td>
+                            <td><input type="time" class="form-control form-control-sm" id="${i}_end" name="${i}_end" value="${toTimeStr(s.endTime)}"></td>
+                            <td>${valveCheckboxes}</td>
+                            <td>
+                              <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" id="${i}_irrigation" name="${i}_irrigation" ${s.irrigationPump ? "checked" : ""}>
+                              </div>
+                            </td>
+                            <td>
+                              <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" id="${i}_fill" name="${i}_fill" ${s.fillPump ? "checked" : ""}>
+                              </div>
+                            </td>
+                             <td><button type="button" class="btn btn-sm btn-success" onclick="saveSchedule(${i})">💾</button></td>
+                            `;
                         tbody.appendChild(row);
                     });
                 });
+        }
+
+        function pad(n) {
+            return n.toString().padStart(2, '0');
         }
 
         function toTimeStr(mins) {
@@ -215,19 +280,22 @@
 
         function saveSchedule(index) {
             const form = document.forms["scheduleForm"];
+            const get = id => document.getElementById(`${index}_${id}`);
+
             const entry = {
                 index: index,
-                enabled: form[`enabled${index}`].checked,
-                startTime: timeToMinutes(form[`start${index}`].value),
-                endTime: timeToMinutes(form[`end${index}`].value),
-                irrigationPump: form[`irrigation${index}`].checked,
-                fillPump: form[`fill${index}`].checked,
+                enabled: get("enabled").checked,
+                startTime: timeToMinutes(get("start").value),
+                endTime: timeToMinutes(get("end").value),
+                irrigationPump: get("irrigation").checked,
+                fillPump: get("fill").checked,
                 valves: []
             };
+
             for (let i = 0; i < 8; i++) {
-                const input = form[`v${index}_${i}`];
-                if (!input) break;
-                entry.valves.push(input.checked);
+                const valveInput = document.getElementById(`${index}_v${i}`);
+                if (!valveInput) break;
+                entry.valves.push(valveInput.checked);
             }
 
             fetch('/schedules', {

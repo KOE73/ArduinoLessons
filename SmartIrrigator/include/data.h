@@ -6,6 +6,10 @@
 #include <functional> // std::identity
 #include "config.h"
 
+void loadSchedulesFromNVS();
+void cleanExtraSchedules();
+void saveScheduleToNVS(int index);
+
 // Элемент расписания
 // Что включить
 struct ScheduleEntry
@@ -57,6 +61,7 @@ struct StateData
 };
 
 extern StateData CurrentState;
+extern StateData WorkState;
 
 
 

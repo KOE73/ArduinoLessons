@@ -86,77 +86,104 @@ void setupWebServer()
 {
     ESP_LOGI(TAG, "setupWebServer");
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
+    server.on(
+        "/",
+        HTTP_GET,
+        [](AsyncWebServerRequest *request)
+        {
             ESP_LOGI(TAG, "GET /");
-            request->send(LittleFS, "/index.html", "text/html"); });
+            request->send(LittleFS, "/index.html", "text/html");
+        });
 
     // API для получения текущего состояния
-    server.on("/state", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-                    JsonDocument doc;
+    server.on(
+        "/state",
+        HTTP_GET,
+        [](AsyncWebServerRequest *request)
+        {
+            JsonDocument doc;
 
-                    doc["out_IrrigationPumpOn"] = CurrentState.out_IrrigationPumpOn;
-                    doc["out_FillPumpOn"] = CurrentState.out_FillPumpOn;
-                    doc["in_IsFull"] = CurrentState.in_IsFull;
-                    doc["hasTime"] = CurrentState.hasTime;
+            doc["out_IrrigationPumpOn"] = WorkState.out_IrrigationPumpOn;
+            doc["out_FillPumpOn"] = WorkState.out_FillPumpOn;
+            doc["in_IsFull"] = WorkState.in_IsFull;
+            doc["in_IsManualFill"] = WorkState.in_IsManualFill;
+            doc["in_IsManualIrrigation"] = WorkState.in_IsManualIrrigation;
+            
+            doc["hasTime"] = WorkState.hasTime;
 
-                    JsonObject timeInfo = doc["timeInfo"].to<JsonObject>();
-                    timeInfo["sec"] = CurrentState.timeInfo.tm_sec;
-                    timeInfo["min"] = CurrentState.timeInfo.tm_min;
-                    timeInfo["hour"] = CurrentState.timeInfo.tm_hour;
-                    timeInfo["mday"] = CurrentState.timeInfo.tm_mday;
-                    timeInfo["month"] = CurrentState.timeInfo.tm_mon;
-                    timeInfo["year"] = CurrentState.timeInfo.tm_year;
-                    timeInfo["wday"] = CurrentState.timeInfo.tm_wday;
-                    timeInfo["yday"] = CurrentState.timeInfo.tm_yday;
-                    timeInfo["isdst"] = CurrentState.timeInfo.tm_isdst;
+            JsonObject timeInfo = doc["timeInfo"].to<JsonObject>();
+            timeInfo["sec"] = WorkState.timeInfo.tm_sec;
+            timeInfo["min"] = WorkState.timeInfo.tm_min;
+            timeInfo["hour"] = WorkState.timeInfo.tm_hour;
+            timeInfo["mday"] = WorkState.timeInfo.tm_mday;
+            timeInfo["month"] = WorkState.timeInfo.tm_mon;
+            timeInfo["year"] = WorkState.timeInfo.tm_year;
+            timeInfo["wday"] = WorkState.timeInfo.tm_wday;
+            timeInfo["yday"] = WorkState.timeInfo.tm_yday;
+            timeInfo["isdst"] = WorkState.timeInfo.tm_isdst;
 
-                    doc["minutesSinceMidnight"] = CurrentState.minutesSinceMidnight;
+            doc["minutesSinceMidnight"] = WorkState.minutesSinceMidnight;
 
-                    JsonArray schedules = doc["schedules"].to<JsonArray>();
-                    for (int i = 0; i < MAX_SCHEDULES; ++i)
-                    {
-                        auto &s = CurrentState.shedules[i];
-                        JsonObject schedule = schedules.createNestedObject();
-                        schedule["index"] = i;
-                        schedule["enabled"] = s.enabled;
-                        schedule["startTime"] = s.startTime;
-                        schedule["endTime"] = s.endTime;
-                        schedule["irrigationPump"] = s.irrigationPump;
-                        schedule["fillPump"] = s.fillPump;
-                        
-                        JsonArray valves = schedule.createNestedArray("valves");
-                        for (int j = 0; j < VALVE_COUNT; ++j)
-                        {
-                            valves.add(s.valves[j]);
-                        }
-                    }
-
-                    String json;
-                    serializeJson(doc, json);
-                    request->send(200, "application/json", json); });
-
-    // API для управления
-    server.on("/control", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-        if (request->hasParam("target") && request->hasParam("value")) {
-            String target = request->getParam("target")->value();
-            bool value = request->getParam("value")->value().toInt();
-
-            if (target == "irrigation") {
-                CurrentState.in_IsManualIrrigation = value;
-            } else if (target == "fill") {
-                CurrentState.in_IsManualFill = value;
-            } else {
-                request->send(400, "text/plain", "Unknown target");
-                return;
+            JsonArray valves = doc["valves"].to<JsonArray>();
+            for (int i = 0; i < VALVE_COUNT; ++i)
+            {
+                    valves.add(WorkState.valveStateOn[i]);
             }
 
-            request->send(200, "text/plain", "OK");
-        } else {
-            request->send(400, "text/plain", "Missing parameters");
-        } });
+            JsonArray schedules = doc["schedules"].to<JsonArray>();
+            for (int i = 0; i < MAX_SCHEDULES; ++i)
+            {
+                auto &s = WorkState.shedules[i];
+                JsonObject schedule = schedules.add<JsonObject>();
+                schedule["index"] = i;
+                schedule["enabled"] = s.enabled;
+                schedule["startTime"] = s.startTime;
+                schedule["endTime"] = s.endTime;
+                schedule["irrigationPump"] = s.irrigationPump;
+                schedule["fillPump"] = s.fillPump;
+
+                JsonArray valves = schedule["valves"].to<JsonArray>();
+                for (int j = 0; j < VALVE_COUNT; ++j)
+                {
+                    valves.add(s.valves[j]);
+                }
+            }
+
+            String json;
+            serializeJson(doc, json);
+            request->send(200, "application/json", json); });
+
+    // API для управления
+    server.on(
+        "/control",
+        HTTP_GET,
+        [](AsyncWebServerRequest *request)
+        {
+            if (request->hasParam("target") && request->hasParam("value"))
+            {
+                String target = request->getParam("target")->value();
+                bool value = request->getParam("value")->value().toInt();
+
+                if (target == "irrigation") 
+                {
+                    CurrentState.in_IsManualIrrigation = value;
+                }
+                else if (target == "fill") 
+                {
+                    CurrentState.in_IsManualFill = value;
+                }
+                else
+                {
+                    request->send(400, "text/plain", "Unknown target");
+                    return;
+                }
+
+                request->send(200, "text/plain", "OK");
+            } 
+            else 
+            {
+                request->send(400, "text/plain", "Missing parameters");
+            } });
 
     server.on(
         "/schedules", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -166,14 +193,14 @@ void setupWebServer()
             JsonArray schedules = doc.to<JsonArray>();
             for (int i = 0; i < MAX_SCHEDULES; ++i) {
                 auto &s = CurrentState.shedules[i];
-                JsonObject schedule = schedules.createNestedObject();
+                JsonObject schedule = schedules.add<JsonObject>();
                 schedule["index"] = i;
                 schedule["enabled"] = s.enabled;
                 schedule["startTime"] = s.startTime;
                 schedule["endTime"] = s.endTime;
                 schedule["irrigationPump"] = s.irrigationPump;
                 schedule["fillPump"] = s.fillPump;
-                JsonArray valves = schedule.createNestedArray("valves");
+                JsonArray valves = schedule["valves"].to<JsonArray>();
                 for (int j = 0; j < VALVE_COUNT; ++j) {
                     valves.add(s.valves[j]);
                 }
@@ -183,11 +210,14 @@ void setupWebServer()
             serializeJson(doc, json);
             request->send(200, "application/json", json); });
 
+    // Получаем новые настройки расписания
     AsyncCallbackWebHandler *handler = new AsyncCallbackWebHandler();
     handler->setUri("/schedules");
     handler->setMethod(HTTP_POST);
-    handler->onBody([](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
-                    {
+    handler->onRequest([](AsyncWebServerRequest *request) {});
+    handler->onBody(
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+        {
             JsonDocument doc;
             DeserializationError err = deserializeJson(doc, data, len);
 
@@ -217,7 +247,10 @@ void setupWebServer()
                 s.valves[i] = valves[i];
             }
 
-            request->send(200, "text/plain", "OK"); });
+            saveScheduleToNVS(indexVal);
+
+            request->send(200, "text/plain", "OK");
+        });
 
     server.addHandler(handler);
 
@@ -226,9 +259,4 @@ void setupWebServer()
     // server.on("/", handleRoot);
     // server.on("/manual", handleManualControl);
     server.begin();
-}
-
-void handleWebRequests()
-{
-    // server.handleClient();
 }

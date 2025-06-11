@@ -3,13 +3,14 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 
+#include "nvs_flash.h"
+#include "nvs.h"
 #include "esp_log.h"
 
 #include "config.h"
 #include "data.h"
 #include "webserver_me.h"
 #include "ntp_time.h"
-#include "eeprom_store.h"
 
 // Load data to LittleFS
 // pio run --target uploadfs
@@ -17,6 +18,8 @@
 static const char *TAG = "PUMP"; // тег для модуля
 
 StateData CurrentState;
+// Чтобы вебка не моргала
+StateData WorkState;
 
 unsigned long lastFillPumpOffTime = 0;
 bool fillPumpState = false;
@@ -117,12 +120,165 @@ void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
     }
 }
 
+void listNVS()
+{
+    esp_err_t err = nvs_flash_init(); // Можно убрать, если уже инициализирован
+    if (err != ESP_OK && err != ESP_ERR_NVS_NO_FREE_PAGES && err != ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_LOGE(TAG, "Ошибка инициализации NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    nvs_iterator_t it = nvs_entry_find(NVS_DEFAULT_PART_NAME, NULL, NVS_TYPE_ANY);
+    if (it == nullptr)
+    {
+        ESP_LOGI(TAG, "NVS пуст или не содержит данных.");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Содержимое NVS:");
+    while (it != nullptr)
+    {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+
+        const char *typeStr = "UNKNOWN";
+        switch (info.type)
+        {
+        case NVS_TYPE_U8:
+            typeStr = "U8";
+            break;
+        case NVS_TYPE_I8:
+            typeStr = "I8";
+            break;
+        case NVS_TYPE_U16:
+            typeStr = "U16";
+            break;
+        case NVS_TYPE_I16:
+            typeStr = "I16";
+            break;
+        case NVS_TYPE_U32:
+            typeStr = "U32";
+            break;
+        case NVS_TYPE_I32:
+            typeStr = "I32";
+            break;
+        case NVS_TYPE_U64:
+            typeStr = "U64";
+            break;
+        case NVS_TYPE_I64:
+            typeStr = "I64";
+            break;
+        case NVS_TYPE_STR:
+            typeStr = "STRING";
+            break;
+        case NVS_TYPE_BLOB:
+            typeStr = "BLOB";
+            break;
+        }
+
+        ESP_LOGI(TAG, "Namespace: %-15s Key: %-15s Type: %s", info.namespace_name, info.key, typeStr);
+
+        it = nvs_entry_next(it);
+    }
+
+    ESP_LOGI(TAG, "Конец списка.");
+}
+
+void listNVS2()
+{
+    esp_err_t err = nvs_flash_init(); // Можно убрать, если уже инициализирован
+    if (err != ESP_OK && err != ESP_ERR_NVS_NO_FREE_PAGES && err != ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_LOGE(TAG, "Ошибка инициализации NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    nvs_iterator_t it = nvs_entry_find(NVS_DEFAULT_PART_NAME, NULL, NVS_TYPE_ANY);
+    if (it == nullptr)
+    {
+        ESP_LOGI(TAG, "NVS пуст или не содержит данных.");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Содержимое NVS:");
+
+    while (it != nullptr)
+    {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        const char *typeStr = "UNKNOWN";
+        String valueStr = "?";
+
+        // Открываем namespace для чтения
+        nvs_handle_t handle;
+        if (nvs_open(info.namespace_name, NVS_READONLY, &handle) != ESP_OK)
+        {
+            ESP_LOGW(TAG, "Не удалось открыть namespace %s", info.namespace_name);
+            it = nvs_entry_next(it);
+            continue;
+        }
+
+        // Пытаемся считать значение
+        if (info.type == NVS_TYPE_I32)
+        {
+            int32_t val = 0;
+            if (nvs_get_i32(handle, info.key, &val) == ESP_OK)
+                valueStr = String(val);
+            typeStr = "I32";
+        }
+        else if (info.type == NVS_TYPE_U32)
+        {
+            uint32_t val = 0;
+            if (nvs_get_u32(handle, info.key, &val) == ESP_OK)
+                valueStr = String(val);
+            typeStr = "U32";
+        }
+        else if (info.type == NVS_TYPE_STR)
+        {
+            size_t len = 0;
+            if (nvs_get_str(handle, info.key, NULL, &len) == ESP_OK && len > 0)
+            {
+                char *buf = (char *)malloc(len);
+                if (nvs_get_str(handle, info.key, buf, &len) == ESP_OK)
+                    valueStr = String(buf);
+                free(buf);
+            }
+            typeStr = "STR";
+        }
+        else if (info.type == NVS_TYPE_U8)
+        {
+            uint8_t val = 0;
+            if (nvs_get_u8(handle, info.key, &val) == ESP_OK)
+                valueStr = String(val);
+            typeStr = "U8";
+        }
+        else if (info.type == NVS_TYPE_BLOB)
+        {
+            size_t len = 0;
+            if (nvs_get_blob(handle, info.key, NULL, &len) == ESP_OK && len > 0)
+            {
+                valueStr = "<BLOB, " + String(len) + " байт>";
+            }
+            typeStr = "BLOB";
+        }
+
+        ESP_LOGI(TAG, "Namespace: %-12s  Key: %-16s  Type: %-6s  Value: %s",
+                 info.namespace_name, info.key, typeStr, valueStr.c_str());
+
+        nvs_close(handle);
+        it = nvs_entry_next(it);
+    }
+
+    ESP_LOGI(TAG, "Конец списка.");
+}
+
 void setup()
 {
     // pinMode(LED_BUILTIN, OUTPUT);
     pinMode(8, OUTPUT);
     digitalWrite(8, LOW);
-    delay(200);
+    delay(2000);
     digitalWrite(8, HIGH);
 
     Serial.begin(921600);
@@ -150,29 +306,18 @@ void setup()
         return;
     }
 
-    // ESP_LOGI(TAG, "Содержимое index.html");
-    // while (file.available())
-    //{
-    //     File file = LittleFS.open("/index.html", "r");
-    //
-    //    if (file)
-    //    {
-    //        uint8_t buf[64];
-    //        size_t bytesRead = file.read(buf, sizeof(buf));
-    //        ESP_LOGI(TAG, "Прочитано %u байт\n", bytesRead);
-    //
-    //        for (size_t i = 0; i < bytesRead; ++i)
-    //        {
-    //            //ESP_LOGI(TAG, buf[i]); // выводим содержимое
-    //        }
-    //
-    //        file.close();
-    //    }
-    //}
-
     setupWiFi();
     setupWebServer();
     initTime();
+
+    loadSchedulesFromNVS();
+
+    // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.json
+    // setenv("TZ", "Asia/Yekaterinburg", 1);  // ВАЖНО: минус, потому что в TZ правилах обратное направление
+    setenv("TZ", "YEKT-5", 1); // ВАЖНО: минус, потому что в TZ правилах обратное направление
+    tzset();
+
+    // listNVS2();
 }
 
 void loop()
@@ -184,14 +329,23 @@ void loop()
         digitalWrite(8, HIGH); // turn the LED on (HIGH is the voltage level)
 
     if (ms % 1000 == 500)
+    {
         ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString());
-
-    uint16_t nowMinutes = getMinutesSinceMidnight();
+        // time_t now;
+        // tm timeInfo;
+        // time(&now);
+        ////setenv("TZ", "CST-5", 1);
+        ////tzset();
+        // localtime_r(&now, &timeInfo);
+        // ESP_LOGI(TAG, "Connected! IP: %i %i %i %i", timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec, timeInfo.tm_isdst);
+    }
 
     // Считываем состояния входов
     stateIn(CurrentState);
 
-    CurrentState.hasTime = getHasTime();
+    // Получаем время, бывает что не получается ! :)
+    tm timeInfo;
+    CurrentState.hasTime = getLocalTime(&timeInfo, 100);
 
     // Обнуление выходов, последующая логика, если надо включит обратно
     CurrentState.allValvesOff();
@@ -204,9 +358,8 @@ void loop()
         goto endMainLogik;
     }
 
-    // Получаем время
-    getLocalTime(&CurrentState.timeInfo, 0);
-    CurrentState.minutesSinceMidnight = getMinutesSinceMidnight();
+    CurrentState.timeInfo = timeInfo;
+    CurrentState.minutesSinceMidnight = getMinutesSinceMidnight(timeInfo);
 
     // Обрабатываем расписание
     for (auto &shedule : CurrentState.shedules)
@@ -236,11 +389,11 @@ endLogik:
     // Выводим состояние выходов
     stateOut(CurrentState);
 
+    WorkState = CurrentState;
+
     // checkSchedules(nowMinutes);
     // controlValvesAndIrrigationPump();
     // controlFillPump();
 
-    handleWebRequests();
-
-    // delay(1); // Основной цикл раз в 1 сек
+    
 }
