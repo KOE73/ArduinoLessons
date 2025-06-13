@@ -43,9 +43,9 @@ void stateOut(StateData &state)
 {
     digitalWrite(PIN_FILL_PUMP, state.out_FillPumpOn);
     digitalWrite(PIN_IRR_PUMP, state.out_IrrigationPumpOn);
-    digitalWrite(PIN_VALVE_1, state.valveStateOn[0]);
-    digitalWrite(PIN_VALVE_2, state.valveStateOn[1]);
-    digitalWrite(PIN_VALVE_3, state.valveStateOn[2]);
+    digitalWrite(PIN_VALVE_1, state.out_ValveOn[0]);
+    digitalWrite(PIN_VALVE_2, state.out_ValveOn[1]);
+    digitalWrite(PIN_VALVE_3, state.out_ValveOn[2]);
 }
 
 // void controlFillPump()
@@ -329,27 +329,19 @@ void loop()
         digitalWrite(8, HIGH); // turn the LED on (HIGH is the voltage level)
 
     if (ms % 1000 == 500)
-    {
-        ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString());
-        // time_t now;
-        // tm timeInfo;
-        // time(&now);
-        ////setenv("TZ", "CST-5", 1);
-        ////tzset();
-        // localtime_r(&now, &timeInfo);
-        // ESP_LOGI(TAG, "Connected! IP: %i %i %i %i", timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec, timeInfo.tm_isdst);
-    }
+        ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString().c_str());
 
     // Считываем состояния входов
     stateIn(CurrentState);
 
-    // Получаем время, бывает что не получается ! :)
+    // Получаем время, бывает что не получается ! :-/
     tm timeInfo;
     CurrentState.hasTime = getLocalTime(&timeInfo, 100);
 
     // Обнуление выходов, последующая логика, если надо включит обратно
     CurrentState.allValvesOff();
 
+#pragma region Время
     // Если времени нет, то всё выключаем и пропускаем основную логику
     if (!CurrentState.hasTime)
     {
@@ -358,9 +350,33 @@ void loop()
         goto endMainLogik;
     }
 
-    CurrentState.timeInfo = timeInfo;
+    CurrentState.now = mktime(&timeInfo);
+    CurrentState.nowTimeInfo = timeInfo;
     CurrentState.minutesSinceMidnight = getMinutesSinceMidnight(timeInfo);
 
+#pragma endregion
+
+#pragma region Ручное управление
+Manual:
+    // Если установленно время окончания ручного управления, то что то хозяин включил, не будем ему мешать
+    if (CurrentState.in_TimeManualOff != 0)
+    {
+        // Проверяем время и Сбрасываем все ручные состояния если время подошло
+
+        if (CurrentState.now >= CurrentState.in_TimeManualOff)
+            CurrentState.allManualsOff();
+
+        CurrentState.out_FillPumpOn = CurrentState.in_IsManualFill;
+        CurrentState.out_IrrigationPumpOn = CurrentState.in_IsManualIrrigation;
+        std::copy(std::begin(CurrentState.in_IsManualValveOn), std::end(CurrentState.in_IsManualValveOn), std::begin(CurrentState.out_ValveOn));
+
+        // Пропускам расписание ибо нефмг поперек батьки
+        goto endMainLogik;
+    }
+#pragma endregion
+
+#pragma region Расписание
+Shedule:
     // Обрабатываем расписание
     for (auto &shedule : CurrentState.shedules)
     {
@@ -369,15 +385,17 @@ void loop()
             std::copy(
                 std::begin(shedule.valves),
                 std::end(shedule.valves),
-                std::begin(CurrentState.valveStateOn));
+                std::begin(CurrentState.out_ValveOn));
             CurrentState.out_IrrigationPumpOn = shedule.irrigationPump;
             CurrentState.out_FillPumpOn = shedule.fillPump;
         }
     }
+#pragma endregion
 
 endMainLogik:
 
-    // Если полив, наполнение нельзя
+    // Обязательная логика!
+    // Если полив, наполнение нельзя, вода холодная
     if (CurrentState.out_IrrigationPumpOn || CurrentState.anyValveOn())
         CurrentState.out_FillPumpOn = false;
 
@@ -389,11 +407,6 @@ endLogik:
     // Выводим состояние выходов
     stateOut(CurrentState);
 
+    // Полная копия для вебки, а то накладки случаются
     WorkState = CurrentState;
-
-    // checkSchedules(nowMinutes);
-    // controlValvesAndIrrigationPump();
-    // controlFillPump();
-
-    
 }

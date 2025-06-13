@@ -1,7 +1,9 @@
 #include <WiFi.h>
-// #include <WebServer.h>
+#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
+#include <ESPAsyncWiFiManager.h>
+#include "AsyncOTA.h"
 
 #include "ArduinoJson.h"
 
@@ -13,34 +15,68 @@ static const char *TAG = "WEB"; // тег для модуля
 
 // WebServer server(SERVER_PORT);
 AsyncWebServer server(SERVER_PORT);
+DNSServer dns;
 
-const char *ssid = "Ufa100500";       // 🔧 сюда можно вставить сохранённые настройки
-const char *password = "A1s2d3f4g56"; // или подгружать из EEPROM
+// const char *ssid = "Ufa100500";       // 🔧 сюда можно вставить сохранённые настройки
+// const char *password = "A1s2d3f4g56"; // или подгружать из EEPROM
+//  Можно передать NULL сюда, если хочешь использовать сохранённые
+const char *ssid = nullptr;
+const char *password = nullptr;
 
 void setupWiFi()
 {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    Serial.print("Connecting to WiFi");
+    AsyncWiFiManager wifiManager(&server, &dns);
+    wifiManager.setConnectTimeout(3); // Ждать Wi-Fi только 3 секунды
+    wifiManager.setTimeout(180);      // AP доступен 3 минуты
+    wifiManager.setDebugOutput(true);
 
-    unsigned long startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_CONNECT_TIMEOUT)
+    // Автоподключение или запуск конфигурационного портала
+    if (!wifiManager.autoConnect(AP_SSID, AP_PASSWORD))
     {
-        Serial.print(".");
-        delay(500);
-    }
-
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString());
+        ESP_LOGW(TAG, "Не удалось подключиться к Wi-Fi или портал не завершён.");
     }
     else
     {
-        ESP_LOGW(TAG, "Failed to connect. Starting AP mode...");
-
-        WiFi.softAP(AP_SSID, AP_PASSWORD);
-        ESP_LOGI(TAG, "AP IP address: %s", WiFi.softAPIP().toString());
+        ESP_LOGI(TAG, "Wi-Fi подключён! IP: %s", WiFi.localIP().toString().c_str());
     }
+
+    // WiFi.mode(WIFI_STA);
+    //
+    // if (ssid && password)
+    //    WiFi.begin(ssid, password);
+    // else
+    //    WiFi.begin(); // пробуем сохранённую сеть
+    //
+    // ESP_LOGI(TAG, "Connecting to WiFi");
+    //
+    // unsigned long startAttemptTime = millis();
+    // while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_CONNECT_TIMEOUT)
+    //{
+    //    ESP_LOGI(TAG, ".");
+    //    delay(500);
+    //}
+    //
+    // if (WiFi.status() == WL_CONNECTED)
+    //{
+    //    ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString().c_str());
+    //}
+    // else
+    //{
+    //    ESP_LOGW(TAG, "Failed to connect. Starting config portal...");
+    //
+    //    WiFiManager wm;
+    //    WiFi.mode(WIFI_AP_STA); // включаем AP + STA
+    //
+    //    // стартуем конфигурационный портал без автоперезапуска
+    //    if (wm.startConfigPortal(AP_SSID, AP_PASSWORD))
+    //    {
+    //        ESP_LOGI(TAG, "Connected via portal! IP: %s", WiFi.localIP().toString().c_str());
+    //    }
+    //    else
+    //    {
+    //        ESP_LOGW(TAG, "Config portal timeout or failed. Not connected.");
+    //    }
+    //}
 }
 
 void handleRoot()
@@ -82,6 +118,39 @@ void onNotFound(AsyncWebServerRequest *request)
     }
 }
 
+unsigned long ota_progress_millis = 0;
+
+void onOTAStart()
+{
+    // Log when OTA has started
+    ESP_LOGI(TAG, "OTA update started!");
+    // <Add your own code here>
+}
+
+void onOTAProgress()
+{
+    // Log every 1 second
+    if (millis() - ota_progress_millis > 1000)
+    {
+        ota_progress_millis = millis();
+        ESP_LOGI(TAG, "OTA Progress ");
+    }
+}
+
+void onOTAEnd()
+{
+    // Log when OTA has finished
+    if (1)
+    {
+        ESP_LOGI(TAG, "OTA update finished successfully!");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "There was an error during OTA update!");
+    }
+    // <Add your own code here>
+}
+
 void setupWebServer()
 {
     ESP_LOGI(TAG, "setupWebServer");
@@ -102,32 +171,50 @@ void setupWebServer()
         [](AsyncWebServerRequest *request)
         {
             JsonDocument doc;
-
-            doc["out_IrrigationPumpOn"] = WorkState.out_IrrigationPumpOn;
-            doc["out_FillPumpOn"] = WorkState.out_FillPumpOn;
-            doc["in_IsFull"] = WorkState.in_IsFull;
-            doc["in_IsManualFill"] = WorkState.in_IsManualFill;
-            doc["in_IsManualIrrigation"] = WorkState.in_IsManualIrrigation;
             
             doc["hasTime"] = WorkState.hasTime;
 
-            JsonObject timeInfo = doc["timeInfo"].to<JsonObject>();
-            timeInfo["sec"] = WorkState.timeInfo.tm_sec;
-            timeInfo["min"] = WorkState.timeInfo.tm_min;
-            timeInfo["hour"] = WorkState.timeInfo.tm_hour;
-            timeInfo["mday"] = WorkState.timeInfo.tm_mday;
-            timeInfo["month"] = WorkState.timeInfo.tm_mon;
-            timeInfo["year"] = WorkState.timeInfo.tm_year;
-            timeInfo["wday"] = WorkState.timeInfo.tm_wday;
-            timeInfo["yday"] = WorkState.timeInfo.tm_yday;
-            timeInfo["isdst"] = WorkState.timeInfo.tm_isdst;
+            doc["in_IsFull"] = WorkState.in_IsFull;
+            doc["in_IsManualFill"] = WorkState.in_IsManualFill;
+            doc["in_IsManualIrrigation"] = WorkState.in_IsManualIrrigation;
+
+            doc["out_IrrigationPumpOn"] = WorkState.out_IrrigationPumpOn;
+            doc["out_FillPumpOn"] = WorkState.out_FillPumpOn;     
+
+ 
+            JsonObject nowTimeInfo = doc["nowTimeInfo"].to<JsonObject>();
+            nowTimeInfo["sec"] = WorkState.nowTimeInfo.tm_sec;
+            nowTimeInfo["min"] = WorkState.nowTimeInfo.tm_min;
+            nowTimeInfo["hour"] = WorkState.nowTimeInfo.tm_hour;
+            nowTimeInfo["mday"] = WorkState.nowTimeInfo.tm_mday;
+            nowTimeInfo["month"] = WorkState.nowTimeInfo.tm_mon;
+            nowTimeInfo["year"] = WorkState.nowTimeInfo.tm_year;
+            nowTimeInfo["wday"] = WorkState.nowTimeInfo.tm_wday;
+            nowTimeInfo["yday"] = WorkState.nowTimeInfo.tm_yday;
+            nowTimeInfo["isdst"] = WorkState.nowTimeInfo.tm_isdst;
+            
+            if(WorkState.in_TimeManualOff != 0)
+            {
+                JsonObject in_TimeInfoManualOff = doc["in_TimeInfoManualOff"].to<JsonObject>();
+                in_TimeInfoManualOff["sec"] = WorkState.in_TimeInfoManualOff.tm_sec;
+                in_TimeInfoManualOff["min"] = WorkState.in_TimeInfoManualOff.tm_min;
+                in_TimeInfoManualOff["hour"] = WorkState.in_TimeInfoManualOff.tm_hour;
+                in_TimeInfoManualOff["mday"] = WorkState.in_TimeInfoManualOff.tm_mday;
+                in_TimeInfoManualOff["month"] = WorkState.in_TimeInfoManualOff.tm_mon;
+                in_TimeInfoManualOff["year"] = WorkState.in_TimeInfoManualOff.tm_year;
+                in_TimeInfoManualOff["wday"] = WorkState.in_TimeInfoManualOff.tm_wday;
+                in_TimeInfoManualOff["yday"] = WorkState.in_TimeInfoManualOff.tm_yday;
+                in_TimeInfoManualOff["isdst"] = WorkState.in_TimeInfoManualOff.tm_isdst;
+            }
 
             doc["minutesSinceMidnight"] = WorkState.minutesSinceMidnight;
 
-            JsonArray valves = doc["valves"].to<JsonArray>();
+            JsonArray valves = doc["out_ValveOn"].to<JsonArray>();
+            JsonArray valvesManual = doc["in_IsManualValveOn"].to<JsonArray>();
             for (int i = 0; i < VALVE_COUNT; ++i)
             {
-                    valves.add(WorkState.valveStateOn[i]);
+                valves.add(WorkState.out_ValveOn[i]);
+                valvesManual.add(WorkState.in_IsManualValveOn[i]);
             }
 
             JsonArray schedules = doc["schedules"].to<JsonArray>();
@@ -162,17 +249,32 @@ void setupWebServer()
             if (request->hasParam("target") && request->hasParam("value"))
             {
                 String target = request->getParam("target")->value();
-                bool value = request->getParam("value")->value().toInt();
+                auto value = request->getParam("value")->value().toInt();
+
+                ESP_LOGI(TAG, "/control target=%s value=%i", target.c_str(), value);
 
                 if (target == "irrigation") 
                 {
-                    CurrentState.in_IsManualIrrigation = value;
+                    CurrentState.setManualIrrigation((bool)value);
                 }
                 else if (target == "fill") 
                 {
-                    CurrentState.in_IsManualFill = value;
+                    CurrentState.setManualFill((bool)value);
                 }
-                else
+                else if (target.startsWith("valve")) 
+                {  
+                    int index = target.substring(5).toInt();
+                    if (index >= 0 && index < VALVE_COUNT) 
+                    {
+                        CurrentState.setManualValve(index, (bool)value);
+                    }
+                }
+                else if (target == "manualOffAdjust") 
+                {
+                    int delta = value;  // уже число минут
+                    CurrentState.adjustManualOffTime(delta);
+                }
+                else                
                 {
                     request->send(400, "text/plain", "Unknown target");
                     return;
@@ -209,6 +311,33 @@ void setupWebServer()
             String json;
             serializeJson(doc, json);
             request->send(200, "application/json", json); });
+
+    // OTA endpoint
+    server.on(
+        "/update",
+        HTTP_POST,
+        [](AsyncWebServerRequest *request)
+        {
+            bool ok = !Update.hasError();
+            request->send(200, "text/plain", ok ? "OK" : "FAIL");
+            if (ok)
+            {
+                delay(100);
+                ESP.restart();
+            }
+        },
+        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
+        {
+            if (!index)
+            {
+                Update.begin(UPDATE_SIZE_UNKNOWN);
+            }
+            Update.write(data, len);
+            if (final)
+            {
+                Update.end(true);
+            }
+        });
 
     // Получаем новые настройки расписания
     AsyncCallbackWebHandler *handler = new AsyncCallbackWebHandler();
@@ -254,8 +383,13 @@ void setupWebServer()
 
     server.addHandler(handler);
 
-    server.onNotFound(onNotFound);
+    AsyncOTA.begin(&server); // Start ElegantOTA
+    // ElegantOTA callbacks
+    AsyncOTA.onOTAStart(onOTAStart);
+    AsyncOTA.onOTAProgress(onOTAProgress);
+    AsyncOTA.onOTAEnd(onOTAEnd);
 
+    server.onNotFound(onNotFound);
     // server.on("/", handleRoot);
     // server.on("/manual", handleManualControl);
     server.begin();

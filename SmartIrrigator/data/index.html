@@ -54,6 +54,22 @@
                         <div class="card-body p-2">
                             <strong><span id="currentTime">?</span></strong>
                             [<strong><span id="minutesSinceMidnight">?</span></strong>]
+
+                            <!-- Время отключения ручного режима -->
+                            <div id="manualOffTimeContainer" class="mt-1 d-none">
+                                <div class="d-flex justify-content-center align-items-baseline flex-wrap gap-2  text-nowrap">
+                                    <div>
+                                        ⏱ <span class="badge bg-warning text-dark" id="manualOffTimeText">?</span>
+                                    </div>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-secondary"
+                                            onclick="sendControl('manualOffAdjust', -5)">−5 мин</button>
+                                        <button class="btn btn-outline-secondary"
+                                            onclick="sendControl('manualOffAdjust', 5)">+5 мин</button>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -64,23 +80,34 @@
                         <div class="card-header bg-primary text-white p-0">
                             Полив
                         </div>
-                        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2 p-1">
+                        <div class="card-body align-items-center flex-wrap gap-2 p-1">
 
-                            <!-- Левая часть: статус -->
-                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                                <span id="irrigationStatus" class="badge rounded-pill bg-light text-dark">Насос</span>
 
-                                <!-- Здесь появятся badges по клапанам -->
-                                <span id="valveStatus" class="d-flex gap-1 flex-wrap"></span>
+                            <!-- Насос полива -->
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <!-- Слева статус насоса -->
+                                <span id="out_IrrigationPumpOn"
+                                    class="badge rounded-pill bg-light text-dark">Насос</span>
+
+                                <!-- Справа переключатель -->
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="irrigationSwitch"
+                                        onchange="sendControl('irrigation', this.checked ? 1 : 0)">
+                                </div>
                             </div>
 
-
-                            <!-- Правая часть: переключатель -->
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="irrigationSwitch"
-                                    onchange="sendControl('irrigation', this.checked ? 1 : 0)">
+                            <!-- Клапаны (динамически добавляются сюда) -->
+                            <div id="valveStatus" class="d-flex flex-column gap-2 mt-2">
+                                <!-- JS добавит сюда по аналогии:
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="badge rounded-pill bg-primary">V1</span>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="valveSwitch0"
+                                                onchange="sendControl('valve0', this.checked ? 1 : 0)">
+                                        </div>
+                                    </div>
+                                -->
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -95,8 +122,8 @@
 
                             <!-- Левая часть: статусы -->
                             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                                <span id="fillStatus" class="badge rounded-pill bg-light text-dark">Насос</span>
-                                <span id="isFull" class="badge rounded-pill bg-light text-dark">Уровень</span>
+                                <span id="out_FillPumpOn" class="badge rounded-pill bg-light text-dark">Насос</span>
+                                <span id="in_IsFull" class="badge rounded-pill bg-light text-dark">Уровень</span>
                             </div>
 
                             <!-- Правая часть: переключатель -->
@@ -153,33 +180,21 @@
                 .then(res => res.json())
                 .then(data => {
 
-                    //document.getElementById('irrigationStatus').textContent = data.out_IrrigationPumpOn ? 'ВКЛ' : 'ВЫКЛ';
-                    const irrigationEl = document.getElementById('irrigationStatus');
-                    irrigationEl.className = 'badge rounded-pill ' + (data.out_IrrigationPumpOn ? 'bg-success' : 'bg-secondary');
+                    const out_IrrigationPumpOn = document.getElementById('out_IrrigationPumpOn');
+                    out_IrrigationPumpOn.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    out_IrrigationPumpOn.classList.add(!!data.out_IrrigationPumpOn ? 'bg-success' : 'bg-secondary');
 
-                    const valveStatus = document.getElementById('valveStatus');
-                    valveStatus.innerHTML = ''; // очистим перед вставкой
+                    updateValves(data.out_ValveOn, data.in_IsManualValveOn);
 
-                    if (Array.isArray(data.valves)) {
-                        data.valves.forEach((isOpen, i) => {
-                            const badge = document.createElement('span');
-                            badge.className = 'badge rounded-pill ' + (isOpen ? 'bg-primary text-white' : 'bg-light text-dark');
-                            badge.textContent = `V${i + 1}`;
-                            valveStatus.appendChild(badge);
-                        });
-                    }
-
-                    //document.getElementById('fillStatus').textContent = data.out_FillPumpOn ? 'ВКЛ' : 'ВЫКЛ';
-                    //document.getElementById('isFull').textContent = data.in_IsFull ? 'Да' : 'Нет';
                     // fillStatus
-                    const fillStatusEl = document.getElementById('fillStatus');
-                    //fillStatusEl.textContent = data.out_FillPumpOn ? 'Насос' : 'ВЫКЛ';
-                    fillStatusEl.className = 'badge rounded-pill ' + (data.out_FillPumpOn ? 'bg-success' : 'bg-secondary');
+                    const out_FillPumpOn = document.getElementById('out_FillPumpOn');
+                    out_FillPumpOn.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    out_FillPumpOn.classList.add(!!data.out_FillPumpOn ? 'bg-success' : 'bg-secondary');
 
                     // isFull
-                    const isFullEl = document.getElementById('isFull');
-                    //isFullEl.textContent = data.in_IsFull ? 'Полная' : 'Не полная';
-                    isFullEl.className = 'badge rounded-pill ' + (data.in_IsFull ? 'bg-primary' : 'bg-warning');
+                    const in_IsFull = document.getElementById('in_IsFull');
+                    in_IsFull.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    in_IsFull.classList.add(!!data.in_IsFull ? 'bg-primary' : 'bg-warning');
 
 
 
@@ -188,14 +203,30 @@
                     //        data.timeInfo.hour, data.timeInfo.min, data.timeInfo.sec).toLocaleTimeString('ru-RU') :
                     //    'Не синхронизировано';
 
-                    const t = data.timeInfo;
-                    if (data.hasTime && t) {
-                        const timeStr = `${pad(t.hour)}:${pad(t.min)}:${pad(t.sec)}`;
+                    const nowTimeInfo = data.nowTimeInfo;
+                    if (data.hasTime && nowTimeInfo) {
+                        const timeStr = `🕔 ${pad(nowTimeInfo.hour)}:${pad(nowTimeInfo.min)}:${pad(nowTimeInfo.sec)}`;
                         document.getElementById('currentTime').textContent = timeStr;
                     } else {
-                        document.getElementById('currentTime').textContent = "Не синхронизировано";
+                        document.getElementById('currentTime').textContent = "🕔 🔄";
                     }
                     document.getElementById('minutesSinceMidnight').textContent = toTimeStr(data.minutesSinceMidnight);
+
+
+                    const manualOffTimeContainer = document.getElementById("manualOffTimeContainer");
+                    const manualOffText = document.getElementById("manualOffTimeText");
+
+                    if (data.in_TimeInfoManualOff) {
+                        const timeManual = data.in_TimeInfoManualOff;
+                        const hh = String(timeManual.hour).padStart(2, '0');
+                        const mm = String(timeManual.min).padStart(2, '0');
+                        const ss = String(timeManual.sec).padStart(2, '0');
+                        manualOffText.textContent = `${hh}:${mm}:${ss}`;
+                        manualOffTimeContainer.classList.remove("d-none");
+                    } else {
+                        manualOffTimeContainer.classList.add("d-none");
+                    }
+
 
                     // Цветовая индикация
                     //updateColor('irrigationStatus', data.out_IrrigationPumpOn);
@@ -207,6 +238,39 @@
                     document.getElementById('irrigationSwitch').checked = data.in_IsManualIrrigation;
                 });
         }
+
+        function updateValves(valves, manualStates) {
+            const container = document.getElementById('valveStatus');
+            container.innerHTML = '';
+            const frag = document.createDocumentFragment();
+
+            for (let i = 0; i < valves.length; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = "d-flex align-items-center justify-content-between";
+
+                const badge = document.createElement('span');
+                badge.className = "badge rounded-pill " + (valves[i] ? "bg-primary" : "bg-light text-dark");
+                badge.textContent = `V${i + 1}`;
+
+                const toggleWrap = document.createElement('div');
+                toggleWrap.className = "form-check form-switch";
+
+                const toggle = document.createElement('input');
+                toggle.className = "form-check-input";
+                toggle.type = "checkbox";
+                toggle.id = `valveSwitch${i}`;
+                toggle.checked = !!manualStates[i];
+                toggle.onchange = () => sendControl(`valve${i}`, toggle.checked ? 1 : 0);
+
+                toggleWrap.appendChild(toggle);
+                wrapper.appendChild(badge);
+                wrapper.appendChild(toggleWrap);
+                frag.appendChild(wrapper);
+            }
+
+            container.appendChild(frag);
+        }
+
 
         function updateColor(id, state) {
             const el = document.getElementById(id);
