@@ -14,7 +14,6 @@
 #include "webserver_me.h"
 #include "ntp_time.h"
 
-
 // Load data to LittleFS
 // pio run --target uploadfs
 
@@ -335,17 +334,25 @@ void loop()
     if (ms % 1000 == 500)
         ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString().c_str());
 
+        
+#pragma region Input
     // Считываем состояния входов
     stateIn(CurrentState);
-
-    // Получаем время, бывает что не получается ! :-/
-    tm timeInfo;
-    CurrentState.hasTime = getLocalTime(&timeInfo, 100);
+#pragma endregion Input
 
     // Обнуление выходов, последующая логика, если надо включит обратно
     CurrentState.allValvesOff();
 
 #pragma region Время
+    // Получаем время, бывает что не получается ! :-/
+    tm timeInfo;
+    CurrentState.hasTime = getLocalTime(&timeInfo, 100);
+
+    CurrentState.hasNTP = sntpReady();
+    CurrentState.hasRTC = rtcHasRTC();
+    CurrentState.hasTimeRTC = rtcHasTime();
+    CurrentState.rtcTemperature = rtcGetTemperature();
+
     // Если времени нет, то всё выключаем и пропускаем основную логику
     if (!CurrentState.hasTime)
     {

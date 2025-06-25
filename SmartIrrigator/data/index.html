@@ -48,16 +48,27 @@
             <div class="row justify-content-center">
                 <div class="col-12 col-md-4 mb-2 mb-md-0">
                     <div class="card shadow-sm">
-                        <div class="card-header bg-info text-white p-0">
-                            Текущее время
-                        </div>
+                        <div class="card-header bg-info text-white p-0">Текущее время</div>
                         <div class="card-body p-2">
+
                             <strong><span id="currentTime">?</span></strong>
                             [<strong><span id="minutesSinceMidnight">?</span></strong>]
 
+                            <!-- Левая часть: статусы -->
+                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                                <span id="hasNTP" class="badge rounded-pill bg-light text-dark">NTP</span>
+                                <span id="hasRTC" class="badge rounded-pill bg-light text-dark">RTC</span>
+                                <span id="hasTimeRTC" class="badge rounded-pill bg-light text-dark">RTC+</span>
+                            </div>
+                            <!-- Левая часть: статусы -->
+                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 pt-1">
+                                <span id="rtcTemperature" class="badge rounded-pill bg-light text-dark">℃</span>
+                            </div>
+
                             <!-- Время отключения ручного режима -->
                             <div id="manualOffTimeContainer" class="mt-1 d-none">
-                                <div class="d-flex justify-content-center align-items-baseline flex-wrap gap-2  text-nowrap">
+                                <div
+                                    class="d-flex justify-content-center align-items-baseline flex-wrap gap-2  text-nowrap">
                                     <div>
                                         ⏱ <span class="badge bg-warning text-dark" id="manualOffTimeText">?</span>
                                     </div>
@@ -197,6 +208,40 @@
                     in_IsFull.classList.add(!!data.in_IsFull ? 'bg-primary' : 'bg-warning');
 
 
+                    // hasNTP
+                    const hasNTP = document.getElementById('hasNTP');
+                    hasNTP.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    hasNTP.classList.add(!!data.hasNTP ? 'bg-success' : 'bg-warning');
+
+                    // hasRTC
+                    const hasRTC = document.getElementById('hasRTC');
+                    hasRTC.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    hasRTC.classList.add(!!data.hasRTC ? 'bg-success' : 'bg-warning');
+
+                    // hasTimeRTC
+                    const hasTimeRTC = document.getElementById('hasTimeRTC');
+                    hasTimeRTC.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    hasTimeRTC.classList.add(!!data.hasTimeRTC ? 'bg-success' : 'bg-warning');
+
+                    // rtcTemperature
+                    const rtcTemperature = document.getElementById('rtcTemperature');
+                    rtcTemperature.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
+                    rtcTemperature.classList.add(data.rtcTemperature > -100 ? 'bg-primary' : 'bg-warning');
+                    if (data.rtcTemperature > -100) {
+                        const timeStr = ` ${data.rtcTemperature}}℃`;
+                        rtcTemperature.textContent = timeStr;
+                    } else {
+                        rtcTemperature.textContent = "--";
+                    }
+
+                    // rtcTimeInfo
+                    const rtcTimeInfo = data.rtcTimeInfo;
+                    if (data.hasTimeRTC && rtcTimeInfo) {
+                        const timeStr = ` ${pad(rtcTimeInfo.mday)}.${pad(rtcTimeInfo.month)}.${pad(rtcTimeInfo.year)} ${pad(rtcTimeInfo.hour)}:${pad(rtcTimeInfo.min)}:${pad(rtcTimeInfo.sec)}`;
+                        hasTimeRTC.textContent = timeStr;
+                    } else {
+                        hasTimeRTC.textContent = "--.--.---- --:--:--";
+                    }
 
                     //document.getElementById('currentTime').textContent = data.hasTime ?
                     //    new Date(data.timeInfo.year + 1900, data.timeInfo.month, data.timeInfo.mday,

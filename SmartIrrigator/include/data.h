@@ -32,16 +32,30 @@ struct ScheduleEntry
 
 struct StateData
 {
-    ScheduleEntry shedules[MAX_SCHEDULES]; // Расписания
 
-    bool hasTime;                  // Время известно. Т.е. соеденились с NTP. Без этого все остальное не имет смысла
+#pragma region Time
+    bool hasNTP;     // Признак наличия синхронизации по NTP
+    bool hasRTC;     // Признак наличия RTC
+    bool hasTimeRTC; // Признак наличия времени в RTC
+    bool hasTime;    // Время известно. Т.е. соеденились с NTP. Без этого все остальное не имет смысла
+
     time_t now;                    // Текущее время в минутах
     tm nowTimeInfo;                // Время в разделенном формате
+    tm rtcTimeInfo;                // Время напрямую из RTC в разделенном формате
     uint16_t minutesSinceMidnight; // Минут с полуночи
     time_t in_TimeManualOff;       // Во сколько отключить все ручные команды.
                                    // При задании любого значения задается +5 минут от текущего.
                                    // Есть кнопки для уменьшения и увеличения по 5 минут
     tm in_TimeInfoManualOff;       // Во сколько отключить все ручные команды. в разделенном формате
+#pragma endregion Time
+
+    float rtcTemperature; // Температура из DS3231
+
+#pragma region Schedule
+    ScheduleEntry shedules[MAX_SCHEDULES]; // Расписания
+#pragma endregion Schedule
+
+#pragma region IO
 
     bool in_IsFull;                       // Датчик наполнения бочки
     bool in_IsManualFill;                 // Ручное управление насосом наполнения
@@ -51,6 +65,10 @@ struct StateData
     bool out_FillPumpOn;           // Насос для наполнения бочки
     bool out_IrrigationPumpOn;     // Насос для полива
     bool out_ValveOn[VALVE_COUNT]; // Клапана
+
+#pragma endregion IO
+
+#pragma region Methods
 
     void allManualsOff()
     {
@@ -137,6 +155,7 @@ struct StateData
             { return v; } // true, если элемент true
         );
     }
+#pragma endregion Methods
 };
 
 extern StateData CurrentState;

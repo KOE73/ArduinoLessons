@@ -173,14 +173,19 @@ void setupWebServer()
             JsonDocument doc;
             
             doc["hasTime"] = WorkState.hasTime;
+            doc["hasNTP"] = WorkState.hasNTP;     
+            doc["hasRTC"] = WorkState.hasRTC;     
+            doc["hasTimeRTC"] = WorkState.hasTimeRTC;     
+            doc["rtcTemperature"] = WorkState.rtcTemperature;     
 
+            
             doc["in_IsFull"] = WorkState.in_IsFull;
             doc["in_IsManualFill"] = WorkState.in_IsManualFill;
             doc["in_IsManualIrrigation"] = WorkState.in_IsManualIrrigation;
 
             doc["out_IrrigationPumpOn"] = WorkState.out_IrrigationPumpOn;
             doc["out_FillPumpOn"] = WorkState.out_FillPumpOn;     
-
+        
  
             JsonObject nowTimeInfo = doc["nowTimeInfo"].to<JsonObject>();
             nowTimeInfo["sec"] = WorkState.nowTimeInfo.tm_sec;
@@ -192,6 +197,17 @@ void setupWebServer()
             nowTimeInfo["wday"] = WorkState.nowTimeInfo.tm_wday;
             nowTimeInfo["yday"] = WorkState.nowTimeInfo.tm_yday;
             nowTimeInfo["isdst"] = WorkState.nowTimeInfo.tm_isdst;
+            
+            JsonObject rtcTimeInfo = doc["rtcTimeInfo"].to<JsonObject>();
+            rtcTimeInfo["sec"] = WorkState.rtcTimeInfo.tm_sec;
+            rtcTimeInfo["min"] = WorkState.rtcTimeInfo.tm_min;
+            rtcTimeInfo["hour"] = WorkState.rtcTimeInfo.tm_hour;
+            rtcTimeInfo["mday"] = WorkState.rtcTimeInfo.tm_mday;
+            rtcTimeInfo["month"] = WorkState.rtcTimeInfo.tm_mon;
+            rtcTimeInfo["year"] = WorkState.rtcTimeInfo.tm_year;
+            rtcTimeInfo["wday"] = WorkState.rtcTimeInfo.tm_wday;
+            rtcTimeInfo["yday"] = WorkState.rtcTimeInfo.tm_yday;
+            rtcTimeInfo["isdst"] = WorkState.rtcTimeInfo.tm_isdst;
             
             if(WorkState.in_TimeManualOff != 0)
             {
