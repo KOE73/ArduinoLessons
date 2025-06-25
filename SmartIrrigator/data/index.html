@@ -57,11 +57,15 @@
                             <!-- Левая часть: статусы -->
                             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                                 <span id="hasNTP" class="badge rounded-pill bg-light text-dark">NTP</span>
-                                <span id="hasRTC" class="badge rounded-pill bg-light text-dark">RTC</span>
+                                <span id="hasRTC" class="badge rounded-pill bg-light text-dark"
+                                    onclick="sendControl('syncTimeFromNTP')">RTC</span>
+                            </div>
+                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 pt-1">
                                 <span id="hasTimeRTC" class="badge rounded-pill bg-light text-dark">RTC+</span>
                             </div>
                             <!-- Левая часть: статусы -->
-                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 pt-1">
+                            <div
+                                class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 pt-1">
                                 <span id="rtcTemperature" class="badge rounded-pill bg-light text-dark">℃</span>
                             </div>
 
@@ -228,7 +232,7 @@
                     rtcTemperature.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
                     rtcTemperature.classList.add(data.rtcTemperature > -100 ? 'bg-primary' : 'bg-warning');
                     if (data.rtcTemperature > -100) {
-                        const timeStr = ` ${data.rtcTemperature}}℃`;
+                        const timeStr = ` ${data.rtcTemperature}℃`;
                         rtcTemperature.textContent = timeStr;
                     } else {
                         rtcTemperature.textContent = "--";

@@ -2,6 +2,7 @@
 #define NTP_TIME_H
 
 #include <Arduino.h>
+#include <RTClib.h>
 
 /*
 Действующие лица
@@ -49,10 +50,14 @@ bool rtcHasTime();
 // Обновление RTC из NTP. Только если всё удачно есть
 bool rtcAdjustFromSntp();
 
+bool getRTCTime(struct tm &timeinfo);
+
 float rtcGetTemperature();
 
 // Явное задание RTC
-bool rtcAdjust(time_t &dt);
+bool rtcAdjust(DateTime &dt);
+
+void  syncTimeFromNTP();
 
 void syncSystemTimeFromRTC();
 

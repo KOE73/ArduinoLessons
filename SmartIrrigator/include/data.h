@@ -37,6 +37,7 @@ struct StateData
     bool hasNTP;     // Признак наличия синхронизации по NTP
     bool hasRTC;     // Признак наличия RTC
     bool hasTimeRTC; // Признак наличия времени в RTC
+    bool rtcLostPower;//
     bool hasTime;    // Время известно. Т.е. соеденились с NTP. Без этого все остальное не имет смысла
 
     time_t now;                    // Текущее время в минутах

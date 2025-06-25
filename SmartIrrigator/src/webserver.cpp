@@ -10,6 +10,7 @@
 // #include "webserver.h"
 #include "config.h"
 #include "data.h"
+#include "ntp_time.h"
 
 static const char *TAG = "WEB"; // тег для модуля
 
@@ -177,6 +178,7 @@ void setupWebServer()
             doc["hasRTC"] = WorkState.hasRTC;     
             doc["hasTimeRTC"] = WorkState.hasTimeRTC;     
             doc["rtcTemperature"] = WorkState.rtcTemperature;     
+            doc["rtcLostPower"] = WorkState.rtcLostPower;     
 
             
             doc["in_IsFull"] = WorkState.in_IsFull;
@@ -289,6 +291,10 @@ void setupWebServer()
                 {
                     int delta = value;  // уже число минут
                     CurrentState.adjustManualOffTime(delta);
+                }             
+                else if (target == "syncTimeFromNTP") 
+                {
+                    syncTimeFromNTP();
                 }
                 else                
                 {

@@ -331,7 +331,7 @@ void loop()
     else
         digitalWrite(8, HIGH); // turn the LED on (HIGH is the voltage level)
 
-    if (ms % 1000 == 500)
+    if (ms % 5000 == 0)
         ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString().c_str());
 
         
@@ -351,7 +351,9 @@ void loop()
     CurrentState.hasNTP = sntpReady();
     CurrentState.hasRTC = rtcHasRTC();
     CurrentState.hasTimeRTC = rtcHasTime();
+    CurrentState.rtcLostPower = rtcLostPower();
     CurrentState.rtcTemperature = rtcGetTemperature();
+    getRTCTime(CurrentState.rtcTimeInfo);
 
     // Если времени нет, то всё выключаем и пропускаем основную логику
     if (!CurrentState.hasTime)
