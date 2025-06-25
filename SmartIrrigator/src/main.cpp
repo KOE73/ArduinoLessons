@@ -3,6 +3,8 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 
+#include <Wire.h>
+
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_log.h"
@@ -11,6 +13,7 @@
 #include "data.h"
 #include "webserver_me.h"
 #include "ntp_time.h"
+
 
 // Load data to LittleFS
 // pio run --target uploadfs
@@ -32,6 +35,8 @@ void setupPins()
     pinMode(PIN_VALVE_2, OUTPUT);
     pinMode(PIN_VALVE_3, OUTPUT);
     pinMode(PIN_FLOAT_SENSOR, INPUT);
+
+    Wire.begin(PIN_SDA, PIN_SCL); // Инициализация I2C с указанием пинов SDA (20), SCL (21)
 }
 
 void stateIn(StateData &state)
@@ -285,7 +290,6 @@ void setup()
     Serial.println("BOOT"); // должно сразу показать что-то
     printf("SETUP x\n");
 
-    // esp_log_level_set("*", ESP_LOG_INFO);  // установить глобально
     ESP_LOGI(TAG, "SETUP");
 
     setupPins();

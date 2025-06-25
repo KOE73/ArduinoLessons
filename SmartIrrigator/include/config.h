@@ -2,12 +2,16 @@
 #define CONFIG_H
 
 // Пины устройств
-#define PIN_FILL_PUMP     2    // Насос для заполнения емкости
-#define PIN_IRR_PUMP      3    // Насос для полива
-#define PIN_VALVE_1       4
-#define PIN_VALVE_2       5
-#define PIN_VALVE_3       6
-#define PIN_FLOAT_SENSOR  7    // Поплавковый датчик уровня
+#define PIN_FILL_PUMP     5    // Насос для заполнения емкости
+#define PIN_IRR_PUMP      6    // Насос для полива
+#define PIN_VALVE_1       7
+#define PIN_VALVE_2       8
+#define PIN_VALVE_3       9
+
+#define PIN_FLOAT_SENSOR  4    // Поплавковый датчик уровня
+
+#define PIN_SDA 20
+#define PIN_SCL 21
 
 // Время
 #define FILL_PUMP_MIN_OFF_TIME 1800  // 30 минут (в секундах)
