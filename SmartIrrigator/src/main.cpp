@@ -19,12 +19,9 @@
 
 static const char *TAG = "PUMP"; // тег для модуля
 
-StateData CurrentState;
+StateData CurrentState = {};
 // Чтобы вебка не моргала
 StateData WorkState;
-
-unsigned long lastFillPumpOffTime = 0;
-bool fillPumpState = false;
 
 void setupPins()
 {
@@ -313,7 +310,21 @@ void setup()
     setupWebServer();
     initTime();
 
+    //    // ---- Настройка CurrentState
+    //    // Если это первый запуск, устанавливаем безопасное значение, чтобы насос можно было включать
+    //    if (CurrentState.out_FillPumpOn_LastOffTime == 0)
+    //    {
+    //        CurrentState.out_FillPumpOn_LastOffTime = millis() - FILL_PUMP_MIN_OFF_TIME_MS - 1;
+    //    }
+
+    // 🕒 Инициализация таймеров
+    CurrentState.timer_Fill_RestartBlock.PT_presetTime = FILL_PUMP_MIN_OFF_TIME_MS;
+    CurrentState.timer_Fill_MaxRuntime.PT_presetTime = FILL_PUMP_MAX_RUNTIME_MS;
+    CurrentState.timer_IsFull_Confirm.PT_presetTime = FULL_STABLE_TIME_MS;
+
     loadSchedulesFromNVS();
+    loadSetupDataFromNVS();
+    CurrentState.applySetupDataToTimers();
 
     // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.json
     // setenv("TZ", "Asia/Yekaterinburg", 1);  // ВАЖНО: минус, потому что в TZ правилах обратное направление
@@ -325,16 +336,15 @@ void setup()
 
 void loop()
 {
-    auto ms = millis();
-    if (ms % 1000 < 500)
+    auto nowMilis = millis();
+    if (nowMilis % 1000 < 500)
         digitalWrite(8, LOW); // turn the LED off by making the voltage LOW
     else
         digitalWrite(8, HIGH); // turn the LED on (HIGH is the voltage level)
 
-    if (ms % 5000 == 0)
+    if (nowMilis % 5000 == 0)
         ESP_LOGI(TAG, "Connected! IP: %s", WiFi.localIP().toString().c_str());
 
-        
 #pragma region Input
     // Считываем состояния входов
     stateIn(CurrentState);
@@ -407,14 +417,45 @@ Shedule:
 
 endMainLogik:
 
-    // Обязательная логика!
-    // Если полив, наполнение нельзя, вода холодная
+    // Аля LAD
+    // 1. Если идёт полив или открыты клапаны — наполнение запрещено
     if (CurrentState.out_IrrigationPumpOn || CurrentState.anyValveOn())
+    {
+        CurrentState.out_FillPumpOn = false;
+    }
+
+    // 2. Подтверждение стабильного уровня поплавка через таймер
+    CurrentState.timer_IsFull_Confirm.update(CurrentState.in_IsFull, nowMilis);
+    bool prevConfirmed = CurrentState.in_IsFull_Confirmed;
+    CurrentState.in_IsFull_Confirmed = CurrentState.timer_IsFull_Confirm.Q_output;
+
+    // 6. Ограничение по максимальному времени работы
+    CurrentState.timer_Fill_MaxRuntime.update(CurrentState.out_FillPumpOn, nowMilis);
+
+    // 3. Если уровень подтвердился или вышло время работы — сброс ручного режима // ???, запуск блокировки
+    if ((CurrentState.in_IsFull_Confirmed && !prevConfirmed) || CurrentState.timer_Fill_MaxRuntime.Q_output)
+    {
+        CurrentState.in_IsManualFill = false;
         CurrentState.out_FillPumpOn = false;
 
-    // Если сработал датчик, вырубаем наполнение
-    if (CurrentState.in_IsFull)
-        CurrentState.out_FillPumpOn = false;
+        // **** CurrentState.timer_Fill_RestartBlock.update(true, nowMilis);
+        ESP_LOGI("LEVEL", "Бочка полная %s, таймер %s",
+                 BOOL_STR(CurrentState.in_IsFull_Confirmed),
+                 BOOL_STR(CurrentState.timer_Fill_MaxRuntime.Q_output));
+    }
+
+    // 4. При падении уровня — лог
+    if (!CurrentState.in_IsFull_Confirmed && prevConfirmed)
+    {
+        ESP_LOGI("LEVEL", "⬇️ Уровень упал — сброс подтверждения");
+    }
+
+    //// 5. Блокировка повторного запуска
+    // CurrentState.timer_Fill_RestartBlock.update(!CurrentState.out_FillPumpOn, nowMilis);
+    // if (CurrentState.timer_Fill_RestartBlock.Q_output)
+    //{
+    //     CurrentState.out_FillPumpOn = false;
+    // }
 
 endLogik:
     // Выводим состояние выходов

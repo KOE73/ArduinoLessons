@@ -81,3 +81,35 @@ void saveScheduleToNVS(int index)
         ESP_LOGE("SAVE", "Ошибка сохранения расписания %d (записано %d байт)", index, written);
     }
 }
+
+
+void loadSetupDataFromNVS()
+{
+    Preferences prefs;
+    prefs.begin("SmartIrrigator", true); // true = только чтение
+
+    CurrentState.setupData.fillPumpMaxRuntimeMs = prefs.getULong("fillMaxRun", FILL_PUMP_MAX_RUNTIME_MS);
+    CurrentState.setupData.fillPumpMinOffTime   = prefs.getULong("fillMinStop", FILL_PUMP_MIN_OFF_TIME_MS);
+    CurrentState.setupData.fullStableTimeMs     = prefs.getULong("fullOkDelay", FULL_STABLE_TIME_MS);
+
+    prefs.end();
+
+    ESP_LOGI("SETUP", "Загружено из NVS: max=%lu, minOff=%lu, stable=%lu",
+        CurrentState.setupData.fillPumpMaxRuntimeMs,
+        CurrentState.setupData.fillPumpMinOffTime,
+        CurrentState.setupData.fullStableTimeMs);
+}
+
+void saveSetupDataToNVS()
+{
+    Preferences prefs;
+    prefs.begin("SmartIrrigator", false); // false = запись
+
+    prefs.putULong("fillMaxRun", CurrentState.setupData.fillPumpMaxRuntimeMs);
+    prefs.putULong("fillMinStop", CurrentState.setupData.fillPumpMinOffTime);
+    prefs.putULong("fullOkDelay", CurrentState.setupData.fullStableTimeMs);
+
+    prefs.end();
+
+    ESP_LOGI("SETUP", "Сохранено в NVS");
+}

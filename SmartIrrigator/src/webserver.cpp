@@ -165,6 +165,7 @@ void setupWebServer()
             request->send(LittleFS, "/index.html", "text/html");
         });
 
+#pragma region /state
     // API для получения текущего состояния
     server.on(
         "/state",
@@ -187,6 +188,9 @@ void setupWebServer()
 
             doc["out_IrrigationPumpOn"] = WorkState.out_IrrigationPumpOn;
             doc["out_FillPumpOn"] = WorkState.out_FillPumpOn;     
+            
+            doc["in_IsFull_Confirmed"] = WorkState.in_IsFull_Confirmed;     
+  
         
  
             JsonObject nowTimeInfo = doc["nowTimeInfo"].to<JsonObject>();
@@ -258,6 +262,9 @@ void setupWebServer()
             serializeJson(doc, json);
             request->send(200, "application/json", json); });
 
+#pragma endregion / state
+
+#pragma region /control
     // API для управления
     server.on(
         "/control",
@@ -309,6 +316,9 @@ void setupWebServer()
                 request->send(400, "text/plain", "Missing parameters");
             } });
 
+#pragma endregion / control
+
+#pragma region GET schedules
     server.on(
         "/schedules", HTTP_GET, [](AsyncWebServerRequest *request)
         {
@@ -334,33 +344,9 @@ void setupWebServer()
             serializeJson(doc, json);
             request->send(200, "application/json", json); });
 
-    // OTA endpoint
-    server.on(
-        "/update",
-        HTTP_POST,
-        [](AsyncWebServerRequest *request)
-        {
-            bool ok = !Update.hasError();
-            request->send(200, "text/plain", ok ? "OK" : "FAIL");
-            if (ok)
-            {
-                delay(100);
-                ESP.restart();
-            }
-        },
-        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
-        {
-            if (!index)
-            {
-                Update.begin(UPDATE_SIZE_UNKNOWN);
-            }
-            Update.write(data, len);
-            if (final)
-            {
-                Update.end(true);
-            }
-        });
+#pragma endregion GET schedules
 
+#pragma region POST schedules
     // Получаем новые настройки расписания
     AsyncCallbackWebHandler *handler = new AsyncCallbackWebHandler();
     handler->setUri("/schedules");
@@ -404,6 +390,95 @@ void setupWebServer()
         });
 
     server.addHandler(handler);
+#pragma endregion / schedules update
+
+#pragma region GET setup
+    server.on(
+        "/setup",
+        HTTP_GET,
+        [](AsyncWebServerRequest *request)
+        {
+            JsonDocument doc;
+            doc["fillPumpMaxRuntimeMs"] = CurrentState.setupData.fillPumpMaxRuntimeMs / 1000;
+            doc["fillPumpMinOffTime"] = CurrentState.setupData.fillPumpMinOffTime / 1000;
+            doc["fullStableTimeMs"] = CurrentState.setupData.fullStableTimeMs / 1000;
+
+            String json;
+            serializeJson(doc, json);
+            request->send(200, "application/json", json);
+        });
+
+#pragma endregion GET setup
+
+#pragma region POST setup
+    AsyncCallbackWebHandler *setupHandler = new AsyncCallbackWebHandler();
+    setupHandler->setUri("/setup");
+    setupHandler->setMethod(HTTP_POST);
+    setupHandler->onRequest([](AsyncWebServerRequest *request) {});
+
+    setupHandler->onBody(
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+        {
+            JsonDocument doc;
+            DeserializationError err = deserializeJson(doc, data, len);
+
+            if (err)
+            {
+                request->send(400, "text/plain", "JSON parse error");
+                return;
+            }
+
+            // Проверка наличия и установка параметров
+            if (doc["fillPumpMaxRuntimeMs"].is<unsigned long>())
+                CurrentState.setupData.fillPumpMaxRuntimeMs = doc["fillPumpMaxRuntimeMs"].as<unsigned long>() * 1000UL;
+
+            if (doc["fillPumpMinOffTime"].is<unsigned long>())
+                CurrentState.setupData.fillPumpMinOffTime = doc["fillPumpMinOffTime"].as<unsigned long>() * 1000UL;
+
+            if (doc["fullStableTimeMs"].is<unsigned long>())
+                CurrentState.setupData.fullStableTimeMs = doc["fullStableTimeMs"].as<unsigned long>() * 1000UL;
+
+            // Сохраняем в NVS
+            saveSetupDataToNVS();
+
+            // Применяем параметры к таймерам
+            CurrentState.applySetupDataToTimers();
+
+            request->send(200, "text/plain", "Setup updated");
+        });
+
+    server.addHandler(setupHandler);
+
+#pragma endregion POST setup
+
+#pragma region /OTA dopnt work
+    // OTA endpoint
+    server.on(
+        "/update",
+        HTTP_POST,
+        [](AsyncWebServerRequest *request)
+        {
+            bool ok = !Update.hasError();
+            request->send(200, "text/plain", ok ? "OK" : "FAIL");
+            if (ok)
+            {
+                delay(100);
+                ESP.restart();
+            }
+        },
+        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
+        {
+            if (!index)
+            {
+                Update.begin(UPDATE_SIZE_UNKNOWN);
+            }
+            Update.write(data, len);
+            if (final)
+            {
+                Update.end(true);
+            }
+        });
+#pragma endregion / OTA dopnt work
 
     AsyncOTA.begin(&server); // Start ElegantOTA
     // ElegantOTA callbacks

@@ -5,10 +5,14 @@
 #include <algorithm>
 #include <functional> // std::identity
 #include "config.h"
+#include "lad.h"
 
 void loadSchedulesFromNVS();
 void cleanExtraSchedules();
 void saveScheduleToNVS(int index);
+
+void loadSetupDataFromNVS();
+void saveSetupDataToNVS();
 
 // Элемент расписания
 // Что включить
@@ -30,15 +34,22 @@ struct ScheduleEntry
     }
 };
 
+struct SetupData
+{
+    unsigned long fillPumpMaxRuntimeMs; // Максимальное время работы насоса
+    unsigned long fillPumpMinOffTime;   // Минимальная пауза между включениями насоса
+    unsigned long fullStableTimeMs;     // Вркмя стабилизации датчика уровня
+};
+
 struct StateData
 {
 
 #pragma region Time
-    bool hasNTP;     // Признак наличия синхронизации по NTP
-    bool hasRTC;     // Признак наличия RTC
-    bool hasTimeRTC; // Признак наличия времени в RTC
-    bool rtcLostPower;//
-    bool hasTime;    // Время известно. Т.е. соеденились с NTP. Без этого все остальное не имет смысла
+    bool hasNTP;       // Признак наличия синхронизации по NTP
+    bool hasRTC;       // Признак наличия RTC
+    bool hasTimeRTC;   // Признак наличия времени в RTC
+    bool rtcLostPower; //
+    bool hasTime;      // Время известно. Т.е. соеденились с NTP. Без этого все остальное не имет смысла
 
     time_t now;                    // Текущее время в минутах
     tm nowTimeInfo;                // Время в разделенном формате
@@ -51,6 +62,24 @@ struct StateData
 #pragma endregion Time
 
     float rtcTemperature; // Температура из DS3231
+
+    SetupData setupData;
+
+#pragma region LogicTimers
+
+    TimerTON timer_IsFull_Confirm;    // Подтверждение стабильного уровня
+    TimerTON timer_Fill_RestartBlock; // Блокировка повторного запуска
+    TimerTON timer_Fill_MaxRuntime;   // Ограничение по времени работы
+
+#pragma endregion LogicTimers
+
+    // unsigned long out_FillPumpOn_LastOffTime = 0; // Задержка включения насоса после срабатывания датчика
+    bool in_IsFull_Confirmed = false; // Настоящее подтверждённое "полнО"
+    // unsigned long in_IsFull_LastStableTime = 0;   // Когда "полнО" стало стабильным
+    // unsigned long in_IsFull_LastChangeTime = 0;   // Когда датчик изменил состояние
+    // bool in_IsFull_Prev;                          // Датчик наполнения бочки из предыдущего цикла
+
+    // bool out_FillPumpOn_CanStart;
 
 #pragma region Schedule
     ScheduleEntry shedules[MAX_SCHEDULES]; // Расписания
@@ -70,6 +99,13 @@ struct StateData
 #pragma endregion IO
 
 #pragma region Methods
+
+    void applySetupDataToTimers()
+    {
+        timer_Fill_MaxRuntime.PT_presetTime = setupData.fillPumpMaxRuntimeMs;
+        timer_Fill_RestartBlock.PT_presetTime = setupData.fillPumpMinOffTime;
+        timer_IsFull_Confirm.PT_presetTime = setupData.fullStableTimeMs;
+    }
 
     void allManualsOff()
     {

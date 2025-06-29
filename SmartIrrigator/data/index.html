@@ -60,7 +60,8 @@
                                 <span id="hasRTC" class="badge rounded-pill bg-light text-dark"
                                     onclick="sendControl('syncTimeFromNTP')">RTC</span>
                             </div>
-                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 pt-1">
+                            <div
+                                class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 pt-1">
                                 <span id="hasTimeRTC" class="badge rounded-pill bg-light text-dark">RTC+</span>
                             </div>
                             <!-- Левая часть: статусы -->
@@ -177,6 +178,28 @@
             </form>
         </div>
 
+        <div class="card mt-4">
+            <div class="card-header bg-info p-0">Настройки логики</div>
+            <div class="card-body">
+                <form id="setupForm">
+                    <div class="mb-3">
+                        <label for="fillPumpMaxRuntimeMs" class="form-label">Макс. время работы насоса (с)</label>
+                        <input type="number" class="form-control" id="fillPumpMaxRuntimeMs">
+                    </div>
+                    <div class="mb-3">
+                        <label for="fillPumpMinOffTime" class="form-label">Мин. пауза между включениями (с)</label>
+                        <input type="number" class="form-control" id="fillPumpMinOffTime">
+                    </div>
+                    <div class="mb-3">
+                        <label for="fullStableTimeMs" class="form-label">Стабилизация датчика (с)</label>
+                        <input type="number" class="form-control" id="fullStableTimeMs">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <span id="setupStatus" class="ms-2 text-success d-none">✅</span>
+                </form>
+            </div>
+        </div>
+
     </div>
 
 
@@ -201,16 +224,26 @@
 
                     updateValves(data.out_ValveOn, data.in_IsManualValveOn);
 
-                    // fillStatus
+                    // out_FillPumpOn
                     const out_FillPumpOn = document.getElementById('out_FillPumpOn');
                     out_FillPumpOn.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
                     out_FillPumpOn.classList.add(!!data.out_FillPumpOn ? 'bg-success' : 'bg-secondary');
+                    // 🚫 Добавляем визуальный индикатор если запрещено включение
+                    out_FillPumpOn.classList.remove('border', 'border-danger'); // Сброс
+                    let pumpText = "Насос";
+                    if (data.out_FillPumpOn_CanStart === false) {
+                        pumpText += " 🔒";
+                        out_FillPumpOn.classList.add('border', 'border-danger'); // Добавляем рамку
+                    }
+                    out_FillPumpOn.textContent = pumpText;
 
-                    // isFull
+                    // in_IsFull
                     const in_IsFull = document.getElementById('in_IsFull');
                     in_IsFull.classList.remove('bg-success', 'bg-danger', 'bg-secondary', 'bg-warning', 'bg-primary', 'bg-light', 'text-dark');
                     in_IsFull.classList.add(!!data.in_IsFull ? 'bg-primary' : 'bg-warning');
-
+                    // Добавим визуальный индикатор подтверждения уровня (✓ или ✖)
+                    const confirmedMark = data.in_IsFull_Confirmed ? " ✓" : " ✖";
+                    in_IsFull.textContent = "Уровень" + confirmedMark;
 
                     // hasNTP
                     const hasNTP = document.getElementById('hasNTP');
@@ -241,7 +274,7 @@
                     // rtcTimeInfo
                     const rtcTimeInfo = data.rtcTimeInfo;
                     if (data.hasTimeRTC && rtcTimeInfo) {
-                        const timeStr = ` ${pad(rtcTimeInfo.mday)}.${pad(rtcTimeInfo.month)}.${pad(rtcTimeInfo.year)} ${pad(rtcTimeInfo.hour)}:${pad(rtcTimeInfo.min)}:${pad(rtcTimeInfo.sec)}`;
+                        const timeStr = ` ${pad(rtcTimeInfo.mday)}.${pad(rtcTimeInfo.month + 1)}.${pad(rtcTimeInfo.year + 1900)} ${pad(rtcTimeInfo.hour)}:${pad(rtcTimeInfo.min)}:${pad(rtcTimeInfo.sec)}`;
                         hasTimeRTC.textContent = timeStr;
                     } else {
                         hasTimeRTC.textContent = "--.--.---- --:--:--";
@@ -420,6 +453,45 @@
         }
 
         loadSchedules();
+
+
+        function loadSetup() {
+            fetch('/setup')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById("fillPumpMaxRuntimeMs").value = data.fillPumpMaxRuntimeMs;
+                    document.getElementById("fillPumpMinOffTime").value = data.fillPumpMinOffTime;
+                    document.getElementById("fullStableTimeMs").value = data.fullStableTimeMs;
+                });
+        }
+
+        function saveSetup(e) {
+            e.preventDefault();
+
+            const payload = {
+                fillPumpMaxRuntimeMs: parseInt(document.getElementById("fillPumpMaxRuntimeMs").value),
+                fillPumpMinOffTime: parseInt(document.getElementById("fillPumpMinOffTime").value),
+                fullStableTimeMs: parseInt(document.getElementById("fullStableTimeMs").value)
+            };
+
+            fetch('/setup', {
+                method: 'POST',
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            })
+                .then(() => {
+                    const status = document.getElementById("setupStatus");
+                    status.classList.remove("d-none");
+                    status.textContent = "✅ Сохранено";
+                    setTimeout(() => status.classList.add("d-none"), 2000);
+                })
+                .catch(() => alert("Ошибка сохранения /setup"));
+
+        }
+        document.getElementById("setupForm").addEventListener("submit", saveSetup);
+        loadSetup();
+
+    </script>
     </script>
 
     <script src="bootstrap.bundle.min.js"></script>
