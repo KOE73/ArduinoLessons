@@ -351,6 +351,8 @@ void loop()
 #pragma endregion Input
 
     // Обнуление выходов, последующая логика, если надо включит обратно
+    CurrentState.out_FillPumpOn = false;
+    CurrentState.out_IrrigationPumpOn = false;
     CurrentState.allValvesOff();
 
 #pragma region Время
@@ -367,11 +369,7 @@ void loop()
 
     // Если времени нет, то всё выключаем и пропускаем основную логику
     if (!CurrentState.hasTime)
-    {
-        CurrentState.out_FillPumpOn = false;
-        CurrentState.out_IrrigationPumpOn = false;
         goto endMainLogik;
-    }
 
     CurrentState.now = mktime(&timeInfo);
     CurrentState.nowTimeInfo = timeInfo;
@@ -381,12 +379,12 @@ void loop()
 
 #pragma region Ручное управление
 Manual:
-    // Если установленно время окончания ручного управления, то что то хозяин включил, не будем ему мешать
+    // Если установленно время окончания ручного управления, то что-то хозяин включил, не будем ему мешать
     if (CurrentState.in_TimeManualOff != 0)
     {
+        // Если ручное выключено или
         // Проверяем время и Сбрасываем все ручные состояния если время подошло
-
-        if (CurrentState.now >= CurrentState.in_TimeManualOff)
+        if (!CurrentState.anyManuals() ||CurrentState.now >= CurrentState.in_TimeManualOff)
             CurrentState.allManualsOff();
 
         CurrentState.out_FillPumpOn = CurrentState.in_IsManualFill;
@@ -433,7 +431,7 @@ endMainLogik:
     CurrentState.timer_Fill_MaxRuntime.update(CurrentState.out_FillPumpOn, nowMilis);
 
     // 3. Если уровень подтвердился или вышло время работы — сброс ручного режима // ???, запуск блокировки
-    if ((CurrentState.in_IsFull_Confirmed && !prevConfirmed) || CurrentState.timer_Fill_MaxRuntime.Q_output)
+    if ((CurrentState.in_IsFull_Confirmed) || CurrentState.timer_Fill_MaxRuntime.Q_output)
     {
         CurrentState.in_IsManualFill = false;
         CurrentState.out_FillPumpOn = false;
